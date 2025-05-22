@@ -43,12 +43,13 @@ void handle_type(const std::vector<std::string>& tokens){
         std::cerr << "Usage: type <command>\n";
         return;
     }
+  const std::string& cmd = tokens[1];
   const char* path_env = std::getenv("PATH");
     if (!path_env) {
         std::cout << cmd << ": not found\n";
         return;
     }
-    const std::string& cmd = tokens[1];
+    
     auto it = command_registry.find(cmd);
 
     if (it != command_registry.end()) {
@@ -61,9 +62,9 @@ void handle_type(const std::vector<std::string>& tokens){
             std::cout << cmd << " is " << full_path << "\n";
             return;
         }
-        std::cout << cmd << ": not found\n";
+        
     }
-  
+  std::cout << cmd << ": not found\n";
 }
 }
 void handle_exit(const std::vector<std::string>& tokens){
