@@ -1,7 +1,30 @@
 #include <iostream>
 #include <string>
+/*
+git add .
+git commit --allow-empty -m "[any message]"
+git push origin master
+*/
+
+std::vector<std::string> tokenize(std::string input){
+   std::istringstream iss(input);
+    std::vector<std::string> tokens;
+    std::string token;
+    while (iss >> token) tokens.push_back(token);
+    return tokens;
+}
+
 void Invalid(std::string input){
-  if(input=="exit 0") exit(0);
+
+  std::vector<std::string>tokens=tokenize(input);
+   if(token[0]=="echo"){
+    for(int i=1;i<tokens.size();++i){
+      std::cout<<token[i];
+    }
+    return;
+   }
+  if(input=="exit 0"||input ="exit") exit(0);
+  
   std::cout << input << ": command not found" << std::endl;
 }
 int main() {
@@ -15,9 +38,8 @@ int main() {
   std::cout << "$ ";
   std::string input;
   std::getline(std::cin, input);
-  if(input=="exit") exit(0);
+ 
   Invalid(input);
-  input.clear();
-  }
+   }
  
 }
