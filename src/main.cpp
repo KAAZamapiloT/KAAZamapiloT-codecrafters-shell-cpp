@@ -12,6 +12,10 @@ int main() {
    std::cout << "$ ";
 
   std::string input;
+  while(input!="exit"){
   std::getline(std::cin, input);
   Invalid(input);
+  input.clear();
+  }
+ 
 }
