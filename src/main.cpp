@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 void Invalid(std::string input){
+  if(input=="exit 0") exit(0);
   std::cout << input << ": command not found" << std::endl;
 }
 int main() {
