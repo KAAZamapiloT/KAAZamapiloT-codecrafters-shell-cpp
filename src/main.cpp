@@ -17,10 +17,10 @@ std::vector<std::string> tokenize(std::string input){
 
 void Invalid(std::string input){
 
-  std::vector<std::string>tokens=tokenize(input);
+  auto tokens = tokenize(input);
    if(!tokens.empty()&&tokens[0]=="echo"){
     for(int i=1;i<tokens.size();++i){
-      std::cout<<tokens[i];
+      std::cout<<tokens[i]<<" ";
     }
     return;
    }
