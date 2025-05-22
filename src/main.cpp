@@ -9,7 +9,7 @@
 #include <unistd.h> 
 #include <sys/types.h>
 #include <sys/wait.h>
-
+ #include <limits.h>
 /*
 git add .
 git commit --allow-empty -m "[any message]"
@@ -33,7 +33,14 @@ bool is_executable(const std::string& path) {
     // access with X_OK checks executable permission
     return access(path.c_str(), X_OK) == 0;
 }
-
+void handle_pwd(const std::vector<std::string>& tokens){
+ char cwd[PATH_MAX];
+  if (getcwd(cwd, sizeof(cwd)) != nullptr) {
+        std::cout << cwd << std::endl;
+    } else {
+        perror("getcwd() error");
+    }
+}
 void exeute_external_command(const std::vector<std::string>& tokens){
  if (tokens.empty()) return;
  auto exe=tokens[0];
