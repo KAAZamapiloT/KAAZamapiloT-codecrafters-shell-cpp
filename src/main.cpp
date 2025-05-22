@@ -33,7 +33,7 @@ void handle_type(const std::vector<std::string>& tokens){
     if (it != command_registry.end()) {
         std::cout << cmd << " is a shell builtin\n";
     } else {
-        std::cout << cmd << " : not found\n";
+        std::cout << cmd << ": not found\n";
     }
   
 }
