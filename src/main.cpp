@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-void Invalid(){
+void Invalid(std::string input){
   std::cout << input << ": command not found" << std::endl;
 }
 int main() {
@@ -13,5 +13,5 @@ int main() {
 
   std::string input;
   std::getline(std::cin, input);
-  Invalid();
+  Invalid(input);
 }
