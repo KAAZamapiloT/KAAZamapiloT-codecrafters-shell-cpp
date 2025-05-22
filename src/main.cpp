@@ -22,17 +22,19 @@ void handle_echo(const std::vector<std::string>& tokens) {
     std::cout << std::endl;
 }
 void handle_type(const std::vector<std::string>& tokens){
-  if (tokens.size() < 2) {
-    std::cerr << "Usage: type <command>\n";
-    return;
-}
+ if (tokens.size() < 2) {
+        std::cerr << "Usage: type <command>\n";
+        return;
+    }
 
-  auto it = command_registry.find(tokens[1]);
-if( command_registry.find(it)!= command_registry.end()){
-std::cout<<it<<"is a shell "<<"builtin"<<std::endl;
-}else{
-  std::cout<<tokens[1]<<"invalid_command: not found"<<std::endl;
-}
+    const std::string& cmd = tokens[1];
+    auto it = command_registry.find(cmd);
+
+    if (it != command_registry.end()) {
+        std::cout << cmd << " is a shell builtin\n";
+    } else {
+        std::cout << cmd << " : not found\n";
+    }
   
 }
 void handle_exit(const std::vector<std::string>& tokens){
@@ -59,24 +61,6 @@ void Execute_Command(const std::string& input){
 }
 
 
-
-bool handle_command(const std::string& input) {
-    auto tokens = tokenize(input);
-
-    if (tokens.empty()) return true;
-
-    const std::string& cmd = tokens[0];
-
-    if (cmd == "exit" || input == "exit 0") {
-        return false;
-    } else if (cmd == "echo") {
-        handle_echo(tokens);
-    } else {
-        std::cout << input << ": command not found" << std::endl;
-    }
-
-    return true;
-}
 
 int main() {
   // Flush after every std::cout / std:cerr
