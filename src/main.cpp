@@ -138,6 +138,7 @@ int main() {
   command_registry["echo"] = handle_echo;
   command_registry["type"] = handle_type;
   command_registry["exit"] = handle_exit;
+  command_registry["pwd"] = handle_pwd;
   while(1){
   std::cout << "$ ";
   std::string input;
