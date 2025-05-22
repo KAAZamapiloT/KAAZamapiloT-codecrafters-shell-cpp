@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <sstream>
 /*
 git add .
 git commit --allow-empty -m "[any message]"
@@ -17,13 +18,13 @@ std::vector<std::string> tokenize(std::string input){
 void Invalid(std::string input){
 
   std::vector<std::string>tokens=tokenize(input);
-   if(token[0]=="echo"){
+   if(!tokens.empty()&&tokens[0]=="echo"){
     for(int i=1;i<tokens.size();++i){
-      std::cout<<token[i];
+      std::cout<<tokens[i];
     }
     return;
    }
-  if(input=="exit 0"||input ="exit") exit(0);
+  if(input=="exit 0"||input =="exit") exit(0);
   
   std::cout << input << ": command not found" << std::endl;
 }
