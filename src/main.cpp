@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <vector>
 /*
 git add .
 git commit --allow-empty -m "[any message]"
