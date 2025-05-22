@@ -45,20 +45,14 @@ args.push_back(nullptr);
 
 pid_t pid =fork();
 
-if(pid==0){
-  execvp(args[0], args.data());
+       if(pid==0){
+        execvp(args[0], args.data());
         std::cerr << args[0] << ": command not found\n";
         exit(1); // Only if execvp fails
 }else if(pid>0){
  int status;
         waitpid(pid, &status, 0);
-        for (int i = 0; i < args.size(); ++i) {
-        if (i == 0)
-            std::cout << "Arg #0 (program name): " << args[i] << std::endl;
-        else
-            std::cout << "Arg #" << i << ": " << args[i] << std::endl;
-    }
-    std::cout << "Program Signature: " << getpid() << std::endl;
+       
 }else{
   std::cerr<<"fork failed\n";
 }
