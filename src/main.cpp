@@ -46,7 +46,7 @@ args.push_back(nullptr);
 pid_t =fork();
 
 if(pid==0){
-  eexecvp(args[0], args.data());
+  execvp(args[0], args.data());
         std::cerr << args[0] << ": command not found\n";
         exit(1); // Only if execvp fails
 }else if(pid>0){
