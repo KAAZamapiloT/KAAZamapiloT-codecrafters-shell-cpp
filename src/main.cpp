@@ -22,12 +22,28 @@ void handle_echo(const std::vector<std::string>& tokens) {
     std::cout << std::endl;
 }
 void handle_type(const std::vector<std::string>& tokens){
-if((auto it = command_registry.find(tokens[1]))!= command_registry.end()){
+  if (tokens.size() < 2) {
+    std::cerr << "Usage: type <command>\n";
+    return;
+}
+
+  auto it = command_registry.find(tokens[1]);
+if( command_registry.find(it)!= command_registry.end()){
 std::cout<<it<<"is a shell "<<"builtin"<<std::endl;
 }else{
   std::cout<<tokens[1]<<"invalid_command: not found"<<std::endl;
 }
   
+}
+void handle_exit(const std::vector<std::string>& tokens){
+  exit(0);
+}
+std::vector<std::string> tokenize(std::string input){
+   std::istringstream iss(input);
+    std::vector<std::string> tokens;
+    std::string token;
+    while (iss >> token) tokens.push_back(token);
+    return tokens;
 }
 void Execute_Command(const std::string& input){
 
@@ -42,13 +58,7 @@ void Execute_Command(const std::string& input){
     }
 }
 
-std::vector<std::string> tokenize(std::string input){
-   std::istringstream iss(input);
-    std::vector<std::string> tokens;
-    std::string token;
-    while (iss >> token) tokens.push_back(token);
-    return tokens;
-}
+
 
 bool handle_command(const std::string& input) {
     auto tokens = tokenize(input);
@@ -74,13 +84,14 @@ int main() {
   std::cerr << std::unitbuf;
 
   // Uncomment this block to pass the first stage
-  
+  command_registry["echo"] = handle_echo;
+  command_registry["type"] = handle_type;
+  command_registry["exit"] = handle_exit;
   while(1){
   std::cout << "$ ";
   std::string input;
   std::getline(std::cin, input);
- 
-  if(!handle_command(input)) break;
+   Execute_Command(input);
    }
  
 }
