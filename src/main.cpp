@@ -10,10 +10,11 @@ int main() {
 
   // Uncomment this block to pass the first stage
   
-  while(input!="exit"){
+  while(1){
   std::cout << "$ ";
   std::string input;
   std::getline(std::cin, input);
+  if(input=="exit") break;
   Invalid(input);
   input.clear();
   }
