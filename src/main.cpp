@@ -7,6 +7,8 @@
 #include <cstdlib>   
 #include <sys/stat.h>   
 #include <unistd.h> 
+#include <sys/types.h>
+#include <sys/wait.h>
 
 /*
 git add .
@@ -31,6 +33,39 @@ bool is_executable(const std::string& path) {
     // access with X_OK checks executable permission
     return access(path.c_str(), X_OK) == 0;
 }
+
+void exeute_external_command(const std::vector<std::string>& tokens){
+ if (tokens.empty()) return;
+ auto exe=tokens[0];
+ std::vector<char*> args;
+for (const std::string& token : tokens) {
+        args.push_back(const_cast<char*>(token.c_str()));
+    }
+args.push_back(nullptr);
+
+pid_t =fork();
+
+if(pid==0){
+  eexecvp(args[0], args.data());
+        std::cerr << args[0] << ": command not found\n";
+        exit(1); // Only if execvp fails
+}else if(pid>0){
+ int status;
+        waitpid(pid, &status, 0);
+        for (int i = 0; i < args.size(); ++i) {
+        if (i == 0)
+            std::cout << "Arg #0 (program name): " << args[i] << std::endl;
+        else
+            std::cout << "Arg #" << i << ": " << args[i] << std::endl;
+    }
+    std::cout << "Program Signature: " << getpid() << std::endl;
+}else{
+  std::cerr<<"fork failed\n";
+}
+
+ }
+    
+
 void handle_echo(const std::vector<std::string>& tokens) {
     for (size_t i = 1; i < tokens.size(); ++i) {
         std::cout << tokens[i];
@@ -86,7 +121,8 @@ void Execute_Command(const std::string& input){
     if (it != command_registry.end()) {
         it->second(tokens); // Call the handler
     } else {
-        std::cout << tokens[0] << ": command not found\n";
+      exeute_external_command(tokens);
+       // std::cout << tokens[0] << ": command not found\n";
     }
 }
 
