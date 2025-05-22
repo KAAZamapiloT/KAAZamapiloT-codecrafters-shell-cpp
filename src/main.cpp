@@ -14,7 +14,7 @@ int main() {
   std::cout << "$ ";
   std::string input;
   std::getline(std::cin, input);
-  if(input=="exit") break;
+  if(input=="exit") exit(0);
   Invalid(input);
   input.clear();
   }
