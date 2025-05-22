@@ -43,7 +43,7 @@ for (const std::string& token : tokens) {
     }
 args.push_back(nullptr);
 
-pid_t =fork();
+pid_t pid =fork();
 
 if(pid==0){
   execvp(args[0], args.data());
