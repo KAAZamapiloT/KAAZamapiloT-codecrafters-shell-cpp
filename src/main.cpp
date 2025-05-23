@@ -613,6 +613,8 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
                         std::cout << suggestion << "  ";
                     std::cout << "\n$ " << buffer << std::flush;
                 }
+            }else{
+                  std::cout << "\x07" << std::flush;
             }
         } else if (c == 127) {
             if (!buffer.empty()) {
