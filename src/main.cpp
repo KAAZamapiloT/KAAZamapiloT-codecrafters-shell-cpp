@@ -610,14 +610,13 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
                 std::cout << "\a" << std::flush; // Bell on no completions
                 first_tab_pressed = false;
             } else if (completions.size() == 1) {
-                // Single completion: autocomplete fully + space
                 std::string lcp = trie.get_longest_common_prefix(buffer);
-                if (lcp.size() > buffer.size()) {
-                    std::string to_add = lcp.substr(buffer.size());
-                    buffer += to_add + " ";
-                    print_prompt_and_buffer();
-                }
-                first_tab_pressed = false;
+
+                  if (lcp.size() > buffer.size()) {
+                  std::string to_add = lcp.substr(buffer.size());
+                  std::cout << to_add << " ";  // ✅ Add trailing space
+                  buffer += to_add + " ";      // ✅ Update buffer
+                  first_tab_pressed=false;
             } else {
                 // Multiple completions
                 if (!first_tab_pressed) {
@@ -626,9 +625,9 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
                 } else {
                     std::cout << "\n";
                    std::sort(completions.begin(), completions.end());
-for (const auto& suggestion : completions) {
-    std::cout << suggestion << "  ";
-}
+                    for (const auto& suggestion : completions) {
+                    std::cout << suggestion << "  ";
+                    }
                     std::cout << "\n";
                     print_prompt_and_buffer();
                     first_tab_pressed = false; // reset after showing options
