@@ -660,7 +660,7 @@ int main() {
   command_registry["exit"] = handle_exit;
   command_registry["pwd"] = handle_pwd;
   command_registry["cd"] = handle_cd;
-  command_registry["exit0"] = handle_exit;
+  //command_registry["exit0"] = handle_exit;
   populate_command_trie(AutoComplete);
  enableRawMode();
   while(1){
