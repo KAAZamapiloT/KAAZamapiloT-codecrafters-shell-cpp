@@ -93,6 +93,24 @@ public:
         }
     }
 
+
+    std::string get_previous() {
+        if (!history.empty() && current_index < history.size()) {
+            current_index = std::min(current_index + 1, history.size());
+            return history[history.size() - current_index];
+        }
+        return "";
+    }
+
+    std::string get_next() {
+        if (!history.empty() && current_index > 0) {
+            current_index--;
+            if (current_index == 0) return "";
+            return history[history.size() - current_index];
+        }
+        return "";
+    }
+
     void print_history() const {
         if (history.empty()) {
             return;  // Don't print anything if history is empty
@@ -784,13 +802,66 @@ std::vector<std::string> matches = trie.find_completions(text);
 
 std::string read_line_with_autocomplete(CommandTrie& trie) {
     std::string buffer;
+    std::string saved_buffer;
     char c;
+
+    bool in_escape = false;
+    std::string escape_seq;
+    bool history_browsing = false;
+    size_t history_position = 0;
+
+    auto refresh_line = [&]() {
+        // Clear line and redraw
+        std::cout << "\r\033[K$ " << buffer << std::flush;
+    };
 
     std::cout << "$ " << std::flush;
     bool first_tab_pressed=false;
     while (true) {
         ssize_t n = read(STDIN_FILENO, &c, 1);
         if (n <= 0) break;
+
+if (in_escape) {
+            escape_seq += c;
+            if (escape_seq.size() == 2) {
+                if (escape_seq == "[A") {  // Up arrow
+                    if (!history_browsing) {
+                        saved_buffer = buffer;
+                        history_browsing = true;
+                        history_position = 0;
+                    }
+
+                    if (history_position < history.size()) {
+                        history_position++;
+                        buffer = history.get_command(history.size() - history_position + 1);
+                        refresh_line();
+                    }
+                }
+                else if (escape_seq == "[B") {  // Down arrow
+                    if (history_browsing && history_position > 0) {
+                        history_position--;
+                        if (history_position == 0) {
+                            buffer = saved_buffer;
+                            history_browsing = false;
+                        } else {
+                            buffer = history.get_command(history.size() - history_position + 1);
+                        }
+                        refresh_line();
+                    }
+                }
+                in_escape = false;
+                escape_seq.clear();
+            }
+            continue;
+        }
+
+        if (c == '\x1B') {  // Escape character (start of escape sequence)
+            in_escape = true;
+            escape_seq.clear();
+            continue;
+        }
+
+
 
         if (c == '\n') {
             std::cout << std::endl;
@@ -887,8 +958,10 @@ int main() {
    enableRawMode();
    std::string input = read_line_with_autocomplete(AutoComplete);
    disableRawMode();
-   History.add_command(input);
-   Execute_Command(input);
+    if (!input.empty()) {
+            History.add_command(input);
+            Execute_Command(input);
+        }
    }
  
 }
