@@ -72,7 +72,7 @@ pid_t pid =fork();
         return;
     }
   const std::string path=tokens[1];
-  if(chdir(path.c_str())!= 0) std::cerr<<"cd failed";
+  if(chdir(path.c_str())!= 0) std::cerr << "cd: " << path << ": " << strerror(errno) << "\n";
 
 }
 
