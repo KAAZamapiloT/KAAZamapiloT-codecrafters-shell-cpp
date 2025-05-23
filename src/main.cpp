@@ -588,61 +588,46 @@ std::vector<std::string> matches = trie.find_completions(text);
 std::string read_line_with_autocomplete(CommandTrie& trie) {
     std::string buffer;
     char c;
-    bool last_was_tab = false;
+
+    std::cout << "$ " << std::flush;
 
     while (true) {
         ssize_t n = read(STDIN_FILENO, &c, 1);
         if (n <= 0) break;
 
         if (c == '\n') {
-            std::cout << std::endl << std::flush;
+            std::cout << std::endl;
             break;
         } else if (c == '\t') {
             auto completions = trie.find_completions(buffer);
-
             if (!completions.empty()) {
                 std::string lcp = trie.get_longest_common_prefix(buffer);
 
                 if (lcp.size() > buffer.size()) {
                     std::string to_add = lcp.substr(buffer.size());
-                    std::cout << to_add << std::flush;
-                    buffer += to_add;
-
-                    // Add a space if this is a complete and unique command
-                    if (completions.size() == 1 && completions[0] == buffer) {
-                        std::cout << ' ' << std::flush;
-                        buffer += ' ';
-                    }
-
-                    last_was_tab = false;
-                } else if (last_was_tab) {
-                    // Show all suggestions on double tab
-                    std::cout << std::endl;
-                    for (const auto& suggestion : completions) {
-                        std::cout << suggestion << "  ";
-                    }
-                    std::cout << std::endl << "$ " << buffer << std::flush;
-                    last_was_tab = false;
+                    std::cout << to_add << " ";  // Add trailing space here
+                    buffer += to_add + " ";
                 } else {
-                    last_was_tab = true;
+                    std::cout << "\n";
+                    for (const auto& suggestion : completions)
+                        std::cout << suggestion << "  ";
+                    std::cout << "\n$ " << buffer << std::flush;
                 }
             }
-        } else if (c == 127 || c == '\b') {
-            // Handle backspace
+        } else if (c == 127) {
             if (!buffer.empty()) {
                 buffer.pop_back();
                 std::cout << "\b \b" << std::flush;
             }
-            last_was_tab = false;
         } else {
             buffer += c;
             std::cout << c << std::flush;
-            last_was_tab = false;
         }
     }
 
     return buffer;
 }
+
 
 
 
@@ -662,7 +647,7 @@ int main() {
   populate_command_trie(AutoComplete);
  enableRawMode();
   while(1){
-  std::cout << "$ ";
+ 
    std::string input = read_line_with_autocomplete(AutoComplete);
    Execute_Command(input);
    }
