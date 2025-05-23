@@ -107,21 +107,21 @@ public:
             std::cout << "    " << (i + 1) << "  " << history[i] << std::endl;
         }
     }
-   void print_int(int limit ) const {
+   void print_int(int n = -1) const {
         if (history.empty()) {
-            std::cout << "No commands in history.\n";
-            return;
+            return;  // Don't print anything if history is empty
         }
         
         size_t start = 0;
-        if (limit > 0 && static_cast<size_t>(limit) < history.size()) {
-            start = history.size() - limit;
+        if (n > 0 && static_cast<size_t>(n) < history.size()) {
+            start = history.size() - n;
         }
         
         for (size_t i = start; i < history.size(); ++i) {
             std::cout << "    " << (i + 1) << "  " << history[i] << std::endl;
         }
     }
+
     void clear_history() {
         history.clear();
     }
