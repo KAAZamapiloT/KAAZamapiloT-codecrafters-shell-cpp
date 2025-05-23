@@ -17,6 +17,7 @@
 #include <readline/history.h>
 #include <termios.h>
 #include<memory>
+#include <dirent.h>
 /*
 git add .
 git commit --allow-empty -m "[any message]"
@@ -38,6 +39,33 @@ void enableRawMode() {
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
+std::vector<std::string> split_path(const std::string& path) {
+    std::vector<std::string> dirs;
+    std::istringstream ss(path);
+    std::string dir;
+    while (std::getline(ss, dir, ':')) {
+        if (!dir.empty()) dirs.push_back(dir);
+    }
+    return dirs;
+}
+struct Command{
+    std::string executable;
+    std::vector<std::string> args;
+
+    std::string stdin_file;
+    std::string stdout_file;
+    std::string stderr_file;
+
+    bool append_stdout = false;
+    bool append_stderr = false;
+};
+
+using CommandHandler = std::function<void(const Command&)>;
+
+std::unordered_map<std::string , CommandHandler> command_registry;
+
+
+void scan_directory_for_executables(const std::string& dir_path, CommandTrie& trie);
 
 class CommandTrie {
 private:
@@ -141,11 +169,37 @@ void populate_command_trie(CommandTrie& trie) {
     }
 }
 
+void scan_directory_for_executables(const std::string& dir_path, CommandTrie& trie) {
+    DIR* dir = opendir(dir_path.c_str());
+    if (!dir) return; // skip if directory can't be opened
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string filename = entry->d_name;
+
+        // Skip "." and ".."
+        if (filename == "." || filename == "..")
+            continue;
+
+        std::string full_path = dir_path + "/" + filename;
+
+        // Check if it's executable and a regular file
+        struct stat sb;
+        if (stat(full_path.c_str(), &sb) == 0 &&
+            S_ISREG(sb.st_mode) &&
+            access(full_path.c_str(), X_OK) == 0) {
+            trie.insert_command(filename); // Insert just the command name
+        }
+    }
+
+    closedir(dir);
+}
+
 char** command_completion(const char* text, int start, int end) {
     // text contains what user has typed so far
     // start and end indicate position in the line
     
-std::vector<std::string> matches = command_trie.find_completions(text);
+std::vector<std::string> matches = Command_trie.find_completions(text);
     
     // Convert to format expected by readline
     char** completion_matches = nullptr;
@@ -160,21 +214,7 @@ std::vector<std::string> matches = command_trie.find_completions(text);
     return completion_matches;
 }
 
-struct Command{
-    std::string executable;
-    std::vector<std::string> args;
 
-    std::string stdin_file;
-    std::string stdout_file;
-    std::string stderr_file;
-
-    bool append_stdout = false;
-    bool append_stderr = false;
-};
-
-using CommandHandler = std::function<void(const Command&)>;
-
-std::unordered_map<std::string , CommandHandler> command_registry;
 
 
 
@@ -212,15 +252,7 @@ Command parse_command(std::vector<std::string>& tokens) {
 }
 
 
-std::vector<std::string> split_path(const std::string& path) {
-    std::vector<std::string> dirs;
-    std::istringstream ss(path);
-    std::string dir;
-    while (std::getline(ss, dir, ':')) {
-        if (!dir.empty()) dirs.push_back(dir);
-    }
-    return dirs;
-}
+
 bool is_executable(const std::string& path) {
     // access with X_OK checks executable permission
     return access(path.c_str(), X_OK) == 0;
