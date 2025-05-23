@@ -234,28 +234,23 @@ Command parse_command(std::vector<std::string>& tokens) {
 
 std::vector<Command> parse_pipeline(const std::vector<std::string>& tokens) {
     std::vector<Command> pipeline;
-    Command current_cmd;
+    std::vector<std::string> current_tokens;
 
     for (const auto& token : tokens) {
         if (token == "|") {
-            // End current command and start a new one
-            if (!current_cmd.args.empty()) {
-                // The first arg is the executable
-                current_cmd.executable = current_cmd.args[0];
-                pipeline.push_back(current_cmd);
-                current_cmd = Command(); // reset
-            } else {
-                // Empty command before pipe, handle error or ignore
+            if (!current_tokens.empty()) {
+                Command cmd = parse_command(current_tokens);
+                pipeline.push_back(cmd);
+                current_tokens.clear();
             }
         } else {
-            current_cmd.args.push_back(token);
+            current_tokens.push_back(token);
         }
     }
 
-    // Add the last command if any tokens
-    if (!current_cmd.args.empty()) {
-        current_cmd.executable = current_cmd.args[0];
-        pipeline.push_back(current_cmd);
+    if (!current_tokens.empty()) {
+        Command cmd = parse_command(current_tokens);
+        pipeline.push_back(cmd);
     }
 
     return pipeline;
@@ -264,7 +259,7 @@ std::vector<Command> parse_pipeline(const std::vector<std::string>& tokens) {
 void execute_command(const Command& cmd) {
     auto it = command_registry.find(cmd.executable);
     if (it != command_registry.end()) {
-        it->second(cmd);
+        execute_builtin_with_redirection(cmd, it->second);
         exit(0);
     } else {
         std::vector<char*> argv;
@@ -288,31 +283,53 @@ void execute_pipeline(const std::vector<Command>& pipeline) {
 
     for (int i = 0; i < n; ++i) {
         bool is_last = (i == n - 1);
-        bool is_builtin = command_registry.count(pipeline[i].executable);
-
-        if (is_last && is_builtin) {
-            if (i > 0) dup2(pipe_fds[2 * (i - 1)], STDIN_FILENO);
-            for (int fd : pipe_fds) close(fd);
-            command_registry[pipeline[i].executable](pipeline[i]);
-            return;
-        }
-
         pid_t pid = fork();
+
         if (pid == 0) {
-            if (i > 0) dup2(pipe_fds[2 * (i - 1)], STDIN_FILENO);
-            if (!is_last) dup2(pipe_fds[2 * i + 1], STDOUT_FILENO);
+            // Child process
+            if (i > 0) {
+                dup2(pipe_fds[2 * (i - 1)], STDIN_FILENO);
+            }
+            if (!is_last) {
+                dup2(pipe_fds[2 * i + 1], STDOUT_FILENO);
+            }
             for (int fd : pipe_fds) close(fd);
-            execute_command(pipeline[i]);
+
+            // Apply command-specific redirections
+            const Command& cmd = pipeline[i];
+            if (!cmd.stdin_file.empty()) {
+                int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
+                if (fd != -1) dup2(fd, STDIN_FILENO);
+            }
+            if (!cmd.stdout_file.empty()) {
+                int flags = O_WRONLY | O_CREAT | (cmd.append_stdout ? O_APPEND : O_TRUNC);
+                int fd = open(cmd.stdout_file.c_str(), flags, 0644);
+                if (fd != -1) dup2(fd, STDOUT_FILENO);
+            }
+            if (!cmd.stderr_file.empty()) {
+                int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
+                int fd = open(cmd.stderr_file.c_str(), flags, 0644);
+                if (fd != -1) dup2(fd, STDERR_FILENO);
+            }
+
+            // Execute the command
+            auto it = command_registry.find(cmd.executable);
+            if (it != command_registry.end()) {
+                execute_builtin_with_redirection(cmd, it->second);
+                exit(0);
+            } else {
+                execute_external_command(cmd);
+            }
         } else if (pid < 0) {
             perror("fork");
             return;
         }
     }
 
+    // Parent closes all pipes and waits for children
     for (int fd : pipe_fds) close(fd);
     for (int i = 0; i < n; ++i) wait(nullptr);
 }
-
 
 bool is_executable(const std::string& path) {
     // access with X_OK checks executable permission
