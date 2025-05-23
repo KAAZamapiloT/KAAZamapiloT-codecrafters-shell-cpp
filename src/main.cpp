@@ -100,7 +100,7 @@ public:
         }
         
         for (size_t i = 0; i < history.size(); ++i) {
-            std::cout << (i + 1) << ": " << history[i] << std::endl;
+            std::cout << (i + 1) << " " << history[i] << std::endl;
         }
     }
 
