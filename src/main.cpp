@@ -67,7 +67,7 @@ using CommandHandler = std::function<void(const Command&)>;
 std::unordered_map<std::string , CommandHandler> command_registry;
 
 class ShellHistory {
-private:
+public:
     std::vector<std::string> history;
     size_t max_size;
 
@@ -94,7 +94,7 @@ public:
     }
 
 
-    std::string get_previous() {
+   /* std::string get_previous() {
         if (!history.empty() && current_index < history.size()) {
             current_index = std::min(current_index + 1, history.size());
             return history[history.size() - current_index];
@@ -110,7 +110,7 @@ public:
         }
         return "";
     }
-
+*/
     void print_history() const {
         if (history.empty()) {
             return;  // Don't print anything if history is empty
@@ -831,9 +831,9 @@ if (in_escape) {
                         history_position = 0;
                     }
 
-                    if (history_position < History.size()) {
+                    if (history_position < History.history.size()) {
                         history_position++;
-                        buffer = History.get_command(History.size() - history_position + 1);
+                        buffer = History.get_command(History.history.size() - history_position + 1);
                         refresh_line();
                     }
                 }
@@ -844,7 +844,7 @@ if (in_escape) {
                             buffer = saved_buffer;
                             history_browsing = false;
                         } else {
-                            buffer = History.get_command(History.size() - history_position + 1);
+                            buffer = History.get_command(History.history.size() - history_position + 1);
                         }
                         refresh_line();
                     }
