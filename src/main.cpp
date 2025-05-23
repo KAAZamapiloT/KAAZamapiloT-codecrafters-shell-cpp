@@ -250,25 +250,22 @@ std::vector<Command> parse_pipeline(const std::string& line) {
 
 void execute_command(const Command& cmd) {
     auto it = command_registry.find(cmd.executable);
-    if(it!=command_registry.end()){
-     it->second(cmd);
-     exit(0);
-    }else{
-std::vector<char*> argv;
-    for (const auto& s : cmd.args) argv.push_back(const_cast<char*>(s.c_str()));
-    argv.push_back(nullptr);
-    execvp(argv[0], argv.data());
-    perror("execvp");
-    _exit(1);
+    if (it != command_registry.end()) {
+        it->second(cmd);
+        exit(0);
+    } else {
+        std::vector<char*> argv;
+        for (const auto& s : cmd.args) argv.push_back(const_cast<char*>(s.c_str()));
+        argv.push_back(nullptr);
+        execvp(argv[0], argv.data());
+        perror("execvp");
+        _exit(1);
     }
-    
 }
 
 void execute_pipeline(const std::vector<Command>& pipeline) {
     int n = pipeline.size();
     std::vector<int> pipe_fds(2 * (n - 1));
-
-    // Create necessary pipes
     for (int i = 0; i < n - 1; ++i) {
         if (pipe(&pipe_fds[2 * i]) < 0) {
             perror("pipe");
@@ -280,34 +277,26 @@ void execute_pipeline(const std::vector<Command>& pipeline) {
         bool is_last = (i == n - 1);
         bool is_builtin = command_registry.count(pipeline[i].executable);
 
+        if (is_last && is_builtin) {
+            if (i > 0) dup2(pipe_fds[2 * (i - 1)], STDIN_FILENO);
+            for (int fd : pipe_fds) close(fd);
+            command_registry[pipeline[i].executable](pipeline[i]);
+            return;
+        }
+
         pid_t pid = fork();
         if (pid == 0) {
-            // Set up pipe read end if not first
-            if (i > 0) {
-                dup2(pipe_fds[2 * (i - 1)], STDIN_FILENO);
-            }
-            // Set up pipe write end if not last
-            if (!is_last) {
-                dup2(pipe_fds[2 * i + 1], STDOUT_FILENO);
-            }
-            // Close all pipe fds in child
+            if (i > 0) dup2(pipe_fds[2 * (i - 1)], STDIN_FILENO);
+            if (!is_last) dup2(pipe_fds[2 * i + 1], STDOUT_FILENO);
             for (int fd : pipe_fds) close(fd);
-
-            if (is_builtin) {
-                command_registry[pipeline[i].executable](pipeline[i]);
-                exit(0);
-            } else {
-                execute_command(pipeline[i]);
-            }
+            execute_command(pipeline[i]);
         } else if (pid < 0) {
             perror("fork");
             return;
         }
     }
 
-    // Close all pipe fds in parent
     for (int fd : pipe_fds) close(fd);
-    // Wait for all child processes
     for (int i = 0; i < n; ++i) wait(nullptr);
 }
 
@@ -630,7 +619,12 @@ std::vector<std::string> tokenize(const std::string& input) {
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
-
+ auto pipe_pos = std::find(tokens.begin(), tokens.end(), "|");
+  if (pipe_pos != tokens.end()) {
+        // Pipeline detected
+        auto pipeline = parse_pipeline(tokens);
+        execute_pipeline(pipeline);
+    } else {
 Command cmd = parse_command(tokens);
 if (cmd.executable.empty()) return;
 
@@ -641,6 +635,7 @@ if (it != command_registry.end()) {
     execute_builtin_with_redirection(cmd,it->second);
 } else {
     execute_external_command(cmd);
+}
 }
 
 }
@@ -768,9 +763,7 @@ int main() {
   while(1){
  
    std::string input = read_line_with_autocomplete(AutoComplete);
-    auto pipeline = parse_pipeline(input);
-    if (pipeline.size() > 1) {execute_pipeline(pipeline);}else{
-   Execute_Command(input);}
+   Execute_Command(input);
    }
  
 }
