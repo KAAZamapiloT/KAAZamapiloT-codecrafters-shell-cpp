@@ -600,6 +600,26 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
             break;
         } else if (c == '\t') {
             auto completions = trie.find_completions(buffer);
+            
+            if (!completions.empty()) {
+        std::string lcp = trie.get_longest_common_prefix(buffer);
+        if (lcp.size() > buffer.size()) {
+            // Extend buffer by the missing lcp suffix
+            std::string to_add = lcp.substr(buffer.size());
+            std::cout << to_add << std::flush;
+            buffer += to_add;
+
+            // If that LCP *is* the entire single command, add a trailing space:
+            if (completions.size() == 1) {
+                std::cout << ' ' << std::flush;
+                buffer += ' ';
+            }
+
+            // Reset ambiguous-Tab state and skip to next keypress
+            first_tab_pressed = false;
+            continue;
+        }
+    }
             if(completions.size()>1){
                        if(!first_tab_pressed){
                         first_tab_pressed=true;
@@ -612,6 +632,8 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
             std::cout << suggestion << "  ";
         }
                         std::cout << "\n$ " << buffer << std::flush;
+
+                        std::string lcp = trie.get_longest_common_prefix(buffer);
                         first_tab_pressed=false;
                        }
 
