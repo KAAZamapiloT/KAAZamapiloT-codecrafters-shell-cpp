@@ -92,13 +92,39 @@ void handle_pwd(const Command& cmd){
         perror("getcwd() error");
     }
 }
+bool command_exists_in_path(const std::string& command) {
+    // If the command contains a slash, it's a path, so check it directly
+    if (command.find('/') != std::string::npos) {
+        return is_executable(command);
+    }
+    
+    // Otherwise, search through PATH directories
+    const char* path_env = std::getenv("PATH");
+    if (!path_env) {
+        return false;
+    }
+    
+    std::vector<std::string> path_dirs = split_path(path_env);
+    for (const auto& dir : path_dirs) {
+        std::string full_path = dir + "/" + command;
+        if (is_executable(full_path)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 void execute_external_command(const Command& cmd) {
     std::vector<char*> args;
     for (const auto& arg : cmd.args) {
         args.push_back(const_cast<char*>(arg.c_str()));
     }
     args.push_back(nullptr);
-
+  if (!command_exists_in_path(cmd.executable)) {
+        std::cerr << cmd.executable << ": command not found\n";
+        return;
+    }
     pid_t pid = fork();
     if (pid == 0) {
         // Redirections
@@ -124,7 +150,7 @@ void execute_external_command(const Command& cmd) {
         }
 
         execvp(cmd.executable.c_str(), args.data());
-        perror("execvp failed");
+        perror("Invalid Command");
         exit(1);
     } else if (pid > 0) {
         int status;
