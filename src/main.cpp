@@ -98,7 +98,7 @@ public:
             return;  // Don't print anything if history is empty
         }
         
-        for (size_t i = start; i < history.size(); ++i) {
+        for (size_t i = 0; i < history.size(); ++i) {
             std::cout << "    " << (i + 1) << "  " << history[i] << std::endl;
         }
     }
