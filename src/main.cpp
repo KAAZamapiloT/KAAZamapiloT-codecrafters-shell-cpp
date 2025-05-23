@@ -717,6 +717,10 @@ std::vector<std::string> tokenize(const std::string& input) {
     return tokens;
 }
 
+ShellHistory History(100);
+void  handle_history(const Command& cmd){
+History.print_history();
+}
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
@@ -850,13 +854,14 @@ int main() {
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
   CommandTrie AutoComplete;
-  ShellHistory History(100);
+  
   // Uncomment this block to pass the first stage
   command_registry["echo"] = handle_echo;
   command_registry["type"] = handle_type;
   command_registry["exit"] = handle_exit;
   command_registry["pwd"] = handle_pwd;
   command_registry["cd"] = handle_cd;
+  command_registry["history"]=handle_history;
   //command_registry["exit0"] = handle_exit;
   populate_command_trie(AutoComplete);
  
@@ -865,7 +870,6 @@ int main() {
    std::string input = read_line_with_autocomplete(AutoComplete);
    disableRawMode();
    History.add_command(input);
-   if(input=="history") {History.print_history();continue;}
    Execute_Command(input);
    }
  
