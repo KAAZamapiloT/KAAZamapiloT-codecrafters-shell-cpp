@@ -76,7 +76,7 @@ public:
 
     void add_command(const std::string& command) {
         // Skip empty commands and history command itself
-        if (command.empty() || command == "history") {
+        if (command.empty() ) {
             return;
         }
         
