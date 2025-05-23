@@ -19,12 +19,6 @@ git add .
 git commit --allow-empty -m "[any message]"
 git push origin master
 */
-
-using CommandHandler = std::function<void(const Command&)>;
-
-std::unordered_map<std::string , CommandHandler> command_registry;
-
-
 struct Command{
     std::string executable;
     std::vector<std::string> args;
@@ -36,6 +30,11 @@ struct Command{
     bool append_stdout = false;
     bool append_stderr = false;
 };
+
+using CommandHandler = std::function<void(const Command&)>;
+
+std::unordered_map<std::string , CommandHandler> command_registry;
+
 
 
 Command parse_command(std::vector<std::string>& tokens) {
@@ -54,7 +53,7 @@ Command parse_command(std::vector<std::string>& tokens) {
         } else if ((token == ">" || token == "1>") && i + 1 < tokens.size()) {
             cmd.stdout_file = tokens[++i];
             cmd.append_stdout = false;
-        } else if (token == ">>" && i + 1 < tokens.size()) {
+        } else if ((token == ">>" || token == "1>>") && i + 1 < tokens.size()) {
             cmd.stdout_file = tokens[++i];
             cmd.append_stdout = true;
         } else if (token == "2>" && i + 1 < tokens.size()) {
@@ -70,6 +69,7 @@ Command parse_command(std::vector<std::string>& tokens) {
 
     return cmd;
 }
+
 
 std::vector<std::string> split_path(const std::string& path) {
     std::vector<std::string> dirs;
@@ -135,17 +135,23 @@ void execute_external_command(const Command& cmd) {
 }
 
  void handle_cd(const Command& cmd){
-  if (cmd.args.size() != 2) {
+    if (cmd.args.size() != 2) {
         std::cerr << "Usage: cd <directory>\n";
         return;
     }
-  const std::string path=cmd.args[1];
-  if(cmd.args[1]=="~") {
-    chdir(getenv("HOME"));
-    return;
-  }
-  if(chdir(path.c_str())!= 0) std::cerr << "cd: " << path << ": " << strerror(errno) << "\n";
-
+    
+    const std::string& path = cmd.args[1];
+    if (path == "~") {
+        const char* home = getenv("HOME");
+        if (home && chdir(home) != 0) {
+            std::cerr << "cd: " << home << ": " << strerror(errno) << "\n";
+        }
+        return;
+    }
+    
+    if (chdir(path.c_str()) != 0) {
+        std::cerr << "cd: " << path << ": " << strerror(errno) << "\n";
+    }
 }
 
 void handle_echo(const Command& cmd) {
@@ -189,161 +195,183 @@ void handle_exit(const Command& cmd) {
     (void)cmd;  // suppress unused-parameter warning
     exit(0);
 }
-void execute_builtin_with_redirection(const Command& cmd,
-                                      const CommandHandler& handler) {
-    // 1) Save originals
+void handler(Command cmd){
+    auto it = command_registry.find(cmd.executable());
+    it->second();
+}
+void execute_builtin_with_redirection(const Command& cmd, const CommandHandler& handler) {
+    // Save original file descriptors
     int saved_stdin  = dup(STDIN_FILENO);
     int saved_stdout = dup(STDOUT_FILENO);
     int saved_stderr = dup(STDERR_FILENO);
 
-    // 2) Redirect stdin if requested
+    // Redirect stdin if requested
     if (!cmd.stdin_file.empty()) {
         int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
         if (fd < 0) {
-            std::cerr << "open " << cmd.stdin_file << ": "
-                      << strerror(errno) << "\n";
+            std::cerr << "open " << cmd.stdin_file << ": " << strerror(errno) << "\n";
         } else {
             dup2(fd, STDIN_FILENO);
             close(fd);
         }
     }
 
-    // 3) Redirect stdout if requested
+    // Redirect stdout if requested
     if (!cmd.stdout_file.empty()) {
         int flags = O_WRONLY | O_CREAT | (cmd.append_stdout ? O_APPEND : O_TRUNC);
         int fd = open(cmd.stdout_file.c_str(), flags, 0644);
         if (fd < 0) {
-            std::cerr << "open " << cmd.stdout_file << ": "
-                      << strerror(errno) << "\n";
+            std::cerr << "open " << cmd.stdout_file << ": " << strerror(errno) << "\n";
         } else {
             dup2(fd, STDOUT_FILENO);
             close(fd);
         }
     }
 
-    // 4) Redirect stderr if requested
+    // Redirect stderr if requested
     if (!cmd.stderr_file.empty()) {
         int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
         int fd = open(cmd.stderr_file.c_str(), flags, 0644);
         if (fd < 0) {
-            std::cerr << "open " << cmd.stderr_file << ": "
-                      << strerror(errno) << "\n";
+            std::cerr << "open " << cmd.stderr_file << ": " << strerror(errno) << "\n";
         } else {
             dup2(fd, STDERR_FILENO);
             close(fd);
         }
     }
 
-    // 5) Call the builtin
+    // Execute the builtin command
     handler(cmd);
 
-    // 6) Restore originals
+    // Restore original file descriptors
     dup2(saved_stdin,  STDIN_FILENO);  close(saved_stdin);
     dup2(saved_stdout, STDOUT_FILENO); close(saved_stdout);
     dup2(saved_stderr, STDERR_FILENO); close(saved_stderr);
 }
-std::vector<std::string> tokenize(std::string input){
-   std::istringstream iss(input);
+
+td::vector<std::string> tokenize(const std::string& input) {
     std::vector<std::string> tokens;
     std::string token;
     bool in_single_quote = false;
     bool in_double_quote = false;
     bool escaping = false;
  
-    for(size_t i =0;i<input.size();++i){
-        char c =input[i];
+    for (size_t i = 0; i < input.size(); ++i) {
+        char c = input[i];
 
-         if (escaping) {
+        // Handle escaping
+        if (escaping) {
             token += c;
             escaping = false;
             continue;
         }
-        if(c=='>'||(c=='1'&&input[i+1]=='>')&&input[i+1]!='>'){
-            token+='>';
-        }else 
-         if (c == '\\') {
-            // Inside double quotes: escape only certain characters
+
+        // Handle backslash escaping
+        if (c == '\\') {
             if (in_double_quote) {
+                // Inside double quotes: escape only certain characters
                 if (i + 1 < input.size()) {
                     char next = input[i + 1];
                     if (next == '\\' || next == '"' || next == '$' || next == '`' || next == '\n') {
                         escaping = true;
                         continue;
                     } else {
-                        // Literal backslash
-                        token += '\\';
+                        token += '\\'; // Literal backslash
                     }
                 } else {
                     token += '\\';
                 }
+            } else if (in_single_quote) {
+                token += '\\'; // Inside single quotes: backslash is literal
+            } else {
+                escaping = true; // Outside quotes: escape next char
             }
-            // Inside single quotes: backslash is literal
-            else if (in_single_quote) {
-                token += '\\';
-            }
-            // Outside quotes: escape next char
-            else {
-                escaping = true;
-            }
-        }else
-        if (c == '\\'&&!in_double_quote&&!in_single_quote) {
-            escaping = true;
-        } else if (c == '\'' && !in_double_quote) {
-            in_single_quote = !in_single_quote;  // toggle single quote mode
+            continue;
+        }
+
+        // Handle quotes
+        if (c == '\'' && !in_double_quote) {
+            in_single_quote = !in_single_quote;
+            continue;
         } else if (c == '"' && !in_single_quote) {
-            in_double_quote = !in_double_quote;  // toggle double quote mode
-        } else if (std::isspace(c) && !in_single_quote && !in_double_quote) {
-//.....................................HANDLEING REDIRECTION...................//
-          if (c == '>') {
-            // Flush current token if exists
+            in_double_quote = !in_double_quote;
+            continue;
+        }
+
+        // Don't process special characters inside quotes
+        if (in_single_quote || in_double_quote) {
+            token += c;
+            continue;
+        }
+
+        // Handle redirection operators (outside of quotes)
+        if (c == '<') {
             if (!token.empty()) {
                 tokens.push_back(token);
                 token.clear();
             }
+            tokens.push_back("<");
+            continue;
+        }
 
+        if (c == '>') {
+            if (!token.empty()) {
+                tokens.push_back(token);
+                token.clear();
+            }
             // Check for >>
             if (i + 1 < input.size() && input[i + 1] == '>') {
                 tokens.push_back(">>");
-                i++;  // Skip next '>'
+                i++; // Skip next '>'
             } else {
                 tokens.push_back(">");
             }
             continue;
         }
 
-        if (c == '1' || c == '2') {
-            // Check for 1> or 2>
-            if (i + 1 < input.size() && input[i + 1] == '>') {
-                if (!token.empty()) {
-                    tokens.push_back(token);
-                    token.clear();
-                }
-                tokens.push_back(std::string(1, c) + ">");
-                i++; // skip '>'
-                continue;
-            }
-        }
-
-//.....................................HANDLEING REDIRECTION...................//
+        // Handle numbered redirections (1>, 2>, 1>>, 2>>)
+        if ((c == '1' || c == '2') && i + 1 < input.size() && input[i + 1] == '>') {
             if (!token.empty()) {
                 tokens.push_back(token);
                 token.clear();
             }
-        }else{
+            
+            // Check for append (1>>, 2>>)
+            if (i + 2 < input.size() && input[i + 2] == '>') {
+                tokens.push_back(std::string(1, c) + ">>");
+                i += 2; // Skip '>>'
+            } else {
+                tokens.push_back(std::string(1, c) + ">");
+                i++; // Skip '>'
+            }
+            continue;
+        }
+
+        // Handle whitespace (split tokens)
+        if (std::isspace(c)) {
+            if (!token.empty()) {
+                tokens.push_back(token);
+                token.clear();
+            }
+        } else {
             token += c;
         }
     }
 
-     if (!token.empty()) {
+    // Add final token if exists
+    if (!token.empty()) {
         tokens.push_back(token);
     }
 
+    // Check for unmatched quotes
     if (in_single_quote || in_double_quote) {
         std::cerr << "Error: unmatched quote\n";
-        
+        return {}; // Return empty vector on error
     }
+    
     return tokens;
 }
+
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
