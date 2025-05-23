@@ -150,8 +150,6 @@ std::vector<std::string> tokenize(std::string input){
                 tokens.push_back(token);
                 token.clear();
             }
-        } else if(c=='\\'&&!escaping&&!in_double_quote&&!in_single_quote){
-            token+=" ";            
         }else {
             token += c;
         }
