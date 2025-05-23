@@ -230,7 +230,65 @@ Command parse_command(std::vector<std::string>& tokens) {
     return cmd;
 }
 
+std::vector<Command> parse_pipeline(const std::string& line) {
+    std::vector<Command> pipeline;
+    std::istringstream ss(line);
+    std::string segment;
+    while (std::getline(ss, segment, '|')) {
+        std::istringstream cmdss(segment);
+        Command cmd;
+        std::string arg;
+        while (cmdss >> arg) {
+            cmd.args.push_back(arg);
+        }
+        if (!cmd.args.empty()) pipeline.push_back(cmd);
+    }
+    return pipeline;
+}
 
+void execute_command(const Command& cmd) {
+    std::vector<char*> argv;
+    for (const auto& s : cmd.args) argv.push_back(const_cast<char*>(s.c_str()));
+    argv.push_back(nullptr);
+    execvp(argv[0], argv.data());
+    perror("execvp");
+    _exit(1);
+}
+
+void execute_pipeline(const std::vector<Command>& pipeline) {
+    int n = pipeline.size();
+    std::vector<int> pipe_fds(2 * (n - 1));
+    // Create pipes
+    for (int i = 0; i < n - 1; ++i) {
+        if (pipe(&pipe_fds[2*i]) < 0) { perror("pipe"); return; }
+    }
+    for (int i = 0; i < n; ++i) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            // child
+            // if not first, dup read end
+            if (i > 0) {
+                dup2(pipe_fds[2*(i-1)], STDIN_FILENO);
+            }
+            // if not last, dup write end
+            if (i < n - 1) {
+                dup2(pipe_fds[2*i + 1], STDOUT_FILENO);
+            }
+            // close all fds
+            for (int fd : pipe_fds) close(fd);
+            execute_command(pipeline[i]);
+        }
+        else if (pid < 0) {
+            perror("fork");
+            return;
+        }
+        // parent continues
+    }
+    // parent closes all fds
+    for (int fd : pipe_fds) close(fd);
+    // wait for children
+    for (int i = 0; i < n; ++i) wait(nullptr);
+}
 
 bool is_executable(const std::string& path) {
     // access with X_OK checks executable permission
@@ -600,7 +658,7 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
             break;
         } else if (c == '\t') {
             auto completions = trie.find_completions(buffer);
-            
+
             if (!completions.empty()) {
         std::string lcp = trie.get_longest_common_prefix(buffer);
         if (lcp.size() > buffer.size()) {
@@ -688,7 +746,9 @@ int main() {
   while(1){
  
    std::string input = read_line_with_autocomplete(AutoComplete);
-   Execute_Command(input);
+    auto pipeline = parse_pipeline(input);
+    if (pipeline.size() > 1) {execute_pipeline(pipeline);}else{
+   Execute_Command(input);}
    }
  
 }
