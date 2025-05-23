@@ -107,7 +107,7 @@ public:
             std::cout << "    " << (i + 1) << "  " << history[i] << std::endl;
         }
     }
-   void print_int(int limit = -1) const {
+   void print_int(int limit ) const {
         if (history.empty()) {
             std::cout << "No commands in history.\n";
             return;
