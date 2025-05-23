@@ -126,7 +126,43 @@ std::vector<std::string> tokenize(std::string input){
    std::istringstream iss(input);
     std::vector<std::string> tokens;
     std::string token;
-    while (iss >> token) tokens.push_back(token);
+    bool in_single_quote = false;
+    bool in_double_quote = false;
+    bool escaping = false;
+ 
+    for(size_t i =0;i<input.size();++i){
+        char c =input[i];
+
+         if (escaping) {
+            current_token += c;
+            escaping = false;
+            continue;
+        }
+
+        if (c == '\\') {
+            escaping = true;
+        } else if (c == '\'' && !in_double_quote) {
+            in_single_quote = !in_single_quote;  // toggle single quote mode
+        } else if (c == '"' && !in_single_quote) {
+            in_double_quote = !in_double_quote;  // toggle double quote mode
+        } else if (std::isspace(c) && !in_single_quote && !in_double_quote) {
+            if (!current_token.empty()) {
+                tokens.push_back(current_token);
+                current_token.clear();
+            }
+        } else {
+            current_token += c;
+        }
+    }
+
+     if (!current_token.empty()) {
+        tokens.push_back(current_token);
+    }
+
+    if (in_single_quote || in_double_quote) {
+        std::cerr << "Error: unmatched quote\n";
+        
+    }
     return tokens;
 }
 void Execute_Command(const std::string& input){
