@@ -134,7 +134,7 @@ std::vector<std::string> tokenize(std::string input){
         char c =input[i];
 
          if (escaping) {
-            current_token += c;
+            token += c;
             escaping = false;
             continue;
         }
@@ -146,12 +146,12 @@ std::vector<std::string> tokenize(std::string input){
         } else if (c == '"' && !in_single_quote) {
             in_double_quote = !in_double_quote;  // toggle double quote mode
         } else if (std::isspace(c) && !in_single_quote && !in_double_quote) {
-            if (!current_token.empty()) {
+            if (!token.empty()) {
                 tokens.push_back(current_token);
-                current_token.clear();
+                token.clear();
             }
         } else {
-            current_token += c;
+            token += c;
         }
     }
 
