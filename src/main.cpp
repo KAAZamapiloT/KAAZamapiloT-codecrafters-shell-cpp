@@ -606,15 +606,17 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
                         std::cout<<'\a'<<std::flush;
 
                        }else{
-                        std::sort(completions.begin(),completions.end());
-                        for(auto it:completions){
-                            std::cout<<it<<"  ";
-                        }
-                        std::cout<<"\n$ "<<buffer;
+                       std::sort(completions.begin(), completions.end());
+        std::cout << "\n";
+        for (const auto& suggestion : completions) {
+            std::cout << suggestion << "  ";
+        }
+                        std::cout << "\n$ " << buffer << std::flush;
+                        first_tab_pressed=false;
                        }
 
             }else 
-            if (!completions.empty()) {
+            if (completions.size()==1) {
                 std::string lcp = trie.get_longest_common_prefix(buffer);
 
                 if (lcp.size() > buffer.size()) {
@@ -627,8 +629,10 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
                         std::cout << suggestion << "  ";
                     std::cout << "\n$ " << buffer << std::flush;
                 }
+                first_tab_pressed=false;
             }else{
                   std::cout << "\x07" << std::flush;
+                  first_tab_pressed=false;
             }
         } else if (c == 127) {
             if (!buffer.empty()) {
