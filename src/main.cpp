@@ -53,6 +53,7 @@ void exeute_external_command( std::vector<std::string>& tokens){
 std::string input_file;
 std::string output_file;
 bool append_output = false;
+bool redirect_stdout = false;
 for (auto it = tokens.begin(); it != tokens.end();){
 if (*it == "<") {
             if ((it + 1) == tokens.end()) {
@@ -69,6 +70,7 @@ if (*it == "<") {
             }
 
          output_file = *(it + 1);
+          redirect_stdout = true;
             append_output = false;
             it = tokens.erase(it, it + 2);
         }
@@ -94,25 +96,16 @@ args.push_back(nullptr);
 pid_t pid =fork();
 
        if(pid==0){
-             if (!input_file.empty()) {
-            int fd = open(input_file.c_str(), O_RDONLY);
-            if (fd < 0) {
-                perror("open input");
-                exit(1);
-            }
-            dup2(fd, STDIN_FILENO);
-            close(fd);
-        }
-        if (!output_file.empty()) {
+             if (redirect_stdout) {
             int flags = O_WRONLY | O_CREAT | (append_output ? O_APPEND : O_TRUNC);
             int fd = open(output_file.c_str(), flags, 0644);
             if (fd < 0) {
-                perror("open output");
+                perror("open");
                 exit(1);
             }
             dup2(fd, STDOUT_FILENO);
             close(fd);
-        }  
+        }
 
         execvp(args[0], args.data());
         std::cerr << args[0] << ": command not found\n";
