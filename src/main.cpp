@@ -351,6 +351,7 @@ Command parse_command(std::vector<std::string>& tokens) {
     return cmd;
 }
 
+
 std::vector<Command> parse_pipeline(const std::vector<std::string>& tokens) {
     std::vector<Command> pipeline;
     std::vector<std::string> current_tokens;
@@ -374,47 +375,59 @@ std::vector<Command> parse_pipeline(const std::vector<std::string>& tokens) {
 
     return pipeline;
 }
+void execute_command(const std::string& input) {
+    auto tokens = tokenize(input);
+    if (tokens.empty()) return;
 
-void execute_command(const Command& cmd) {
-    auto it = command_registry.find(cmd.executable);
-    if (it != command_registry.end()) {
-        execute_builtin_with_redirection(cmd, it->second);
-        exit(0);
+    // Check for pipeline operator
+    if (std::find(tokens.begin(), tokens.end(), "|") != tokens.end()) {
+        auto pipeline = parse_pipeline(tokens);
+        execute_pipeline(pipeline);
     } else {
-        std::vector<char*> argv;
-        for (const auto& s : cmd.args) argv.push_back(const_cast<char*>(s.c_str()));
-        argv.push_back(nullptr);
-        execvp(argv[0], argv.data());
-        perror("execvp");
-        _exit(1);
+        Command cmd = parse_command(tokens);
+        if (cmd.executable.empty()) return;
+
+        auto it = command_registry.find(cmd.executable);
+        if (it != command_registry.end()) {
+            execute_builtin_with_redirection(cmd, it->second);
+        } else {
+            execute_external_command(cmd);
+        }
     }
 }
 
 void execute_pipeline(const std::vector<Command>& pipeline) {
-    int n = pipeline.size();
-    std::vector<int> pipe_fds(2 * (n - 1));
-    for (int i = 0; i < n - 1; ++i) {
-        if (pipe(&pipe_fds[2 * i]) < 0) {
+    int num_commands = pipeline.size();
+    if (num_commands == 0) return;
+
+    std::vector<int> pipefds(2 * (num_commands - 1));
+    std::vector<pid_t> child_pids;
+
+    // Create pipes
+    for (int i = 0; i < num_commands - 1; ++i) {
+        if (pipe(pipefds.data() + 2 * i) < 0) {
             perror("pipe");
             return;
         }
     }
 
-    for (int i = 0; i < n; ++i) {
-        bool is_last = (i == n - 1);
+    for (int i = 0; i < num_commands; ++i) {
         pid_t pid = fork();
-
-        if (pid == 0) {
-            // Child process
+        if (pid == 0) { // Child process
+            // Connect input from previous pipe
             if (i > 0) {
-                dup2(pipe_fds[2 * (i - 1)], STDIN_FILENO);
+                dup2(pipefds[2 * (i - 1)], STDIN_FILENO);
             }
-            if (!is_last) {
-                dup2(pipe_fds[2 * i + 1], STDOUT_FILENO);
-            }
-            for (int fd : pipe_fds) close(fd);
 
-            // Apply command-specific redirections
+            // Connect output to next pipe
+            if (i < num_commands - 1) {
+                dup2(pipefds[2 * i + 1], STDOUT_FILENO);
+            }
+
+            // Close all pipe file descriptors
+            for (int fd : pipefds) close(fd);
+
+            // Apply command-specific redirections (override pipes if needed)
             const Command& cmd = pipeline[i];
             if (!cmd.stdin_file.empty()) {
                 int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
@@ -425,31 +438,33 @@ void execute_pipeline(const std::vector<Command>& pipeline) {
                 int fd = open(cmd.stdout_file.c_str(), flags, 0644);
                 if (fd != -1) dup2(fd, STDOUT_FILENO);
             }
-            if (!cmd.stderr_file.empty()) {
-                int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
-                int fd = open(cmd.stderr_file.c_str(), flags, 0644);
-                if (fd != -1) dup2(fd, STDERR_FILENO);
-            }
 
-            // Execute the command
+            // Execute built-in or external command
             auto it = command_registry.find(cmd.executable);
             if (it != command_registry.end()) {
+                // Built-in: Run in child process and exit
                 execute_builtin_with_redirection(cmd, it->second);
-                exit(0);
+                exit(0); // Critical: Exit child after built-in completes
             } else {
+                // External command
                 execute_external_command(cmd);
             }
+            exit(EXIT_FAILURE); // If execution fails
         } else if (pid < 0) {
             perror("fork");
             return;
         }
+        child_pids.push_back(pid);
     }
 
-    // Parent closes all pipes and waits for children
-    for (int fd : pipe_fds) close(fd);
-    for (int i = 0; i < n; ++i) wait(nullptr);
-}
+    // Parent closes all pipes
+    for (int fd : pipefds) close(fd);
 
+    // Wait for all children to finish
+    for (pid_t pid : child_pids) {
+        waitpid(pid, nullptr, 0);
+    }
+}
 
 void handle_pwd(const Command& cmd){
  char cwd[PATH_MAX];
@@ -651,25 +666,24 @@ std::vector<std::string> tokenize(const std::string& input) {
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
-  auto pipe_pos = std::find(tokens.begin(), tokens.end(), "|");
-  if (pipe_pos != tokens.end()) {
-        // Pipeline detected
+
+    // Check for pipeline operator
+    if (std::find(tokens.begin(), tokens.end(), "|") != tokens.end()) {
         auto pipeline = parse_pipeline(tokens);
         execute_pipeline(pipeline);
     } else {
-Command cmd = parse_command(tokens);
-if (cmd.executable.empty()) return;
+        Command cmd = parse_command(tokens);
+        if (cmd.executable.empty()) return;
 
-auto it  = command_registry.find(cmd.executable);
-
-if (it != command_registry.end()) {
-    //it->second(cmd);
-    execute_builtin_with_redirection(cmd,it->second);
-} else {
-    execute_external_command(cmd);
-}
-}
-
+        auto it = command_registry.find(cmd.executable);
+        if (it != command_registry.end()) {
+            // Built-in command (non-pipeline)
+            execute_builtin_with_redirection(cmd, it->second);
+        } else {
+            // External command (non-pipeline)
+            execute_external_command(cmd);
+        }
+    }
 }
 
 
@@ -793,7 +807,7 @@ int main() {
   populate_command_trie(AutoComplete);
  
   while(1){
-  enableRawMode();
+   enableRawMode();
    std::string input = read_line_with_autocomplete(AutoComplete);
    disableRawMode();
    Execute_Command(input);
