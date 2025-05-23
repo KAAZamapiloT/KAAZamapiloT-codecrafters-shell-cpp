@@ -589,14 +589,8 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
     std::string buffer;
     char c;
 
-    bool first_tab_pressed = false;
-
-    auto print_prompt_and_buffer = [&buffer]() {
-        std::cout << "\r$ " << buffer << std::flush; // Carriage return + prompt + buffer
-    };
-
-    print_prompt_and_buffer();
-
+    std::cout << "$ " << std::flush;
+    bool first_tab_pressed=false;
     while (true) {
         ssize_t n = read(STDIN_FILENO, &c, 1);
         if (n <= 0) break;
@@ -606,51 +600,50 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
             break;
         } else if (c == '\t') {
             auto completions = trie.find_completions(buffer);
-            if (completions.empty()) {
-                std::cout << "\a" << std::flush; // Bell on no completions
-                first_tab_pressed = false;
-            } else if (completions.size() == 1) {
+            if(completions.size()>1){
+                       if(!first_tab_pressed){
+                        first_tab_pressed=true;
+                        std::cout<<'\a'<<std::flush;
+
+                       }else{
+                        std::sort(completions.begin(),completions.end());
+                        for(auto it:completions){
+                            std::cout<<it<<"  ";
+                        }
+                        std::cout<<"\n$ "<<buffer;
+                       }
+
+            }else 
+            if (!completions.empty()) {
                 std::string lcp = trie.get_longest_common_prefix(buffer);
 
-                  if (lcp.size() > buffer.size()) {
-                  std::string to_add = lcp.substr(buffer.size());
-                  std::cout << to_add << " ";  // ✅ Add trailing space
-                  buffer += to_add + " ";      // ✅ Update buffer
-                }
-                first_tab_pressed=false;
-            } else {
-                // Multiple completions
-                if (!first_tab_pressed) {
-                    std::cout << "\a" << std::flush; // Bell first time
-                    first_tab_pressed = true;
+                if (lcp.size() > buffer.size()) {
+                    std::string to_add = lcp.substr(buffer.size());
+                    std::cout << to_add << " ";  // Add trailing space here
+                    buffer += to_add + " ";
                 } else {
                     std::cout << "\n";
-                   std::sort(completions.begin(), completions.end());
-                    for (const auto& suggestion : completions) {
-                    std::cout << suggestion << "  ";
-                    }
-                    std::cout << "\n";
-                    print_prompt_and_buffer();
-                    first_tab_pressed = false; // reset after showing options
+                    for (const auto& suggestion : completions)
+                        std::cout << suggestion << "  ";
+                    std::cout << "\n$ " << buffer << std::flush;
                 }
+            }else{
+                  std::cout << "\x07" << std::flush;
             }
-        } else if (c == 127) { // Backspace
+        } else if (c == 127) {
             if (!buffer.empty()) {
                 buffer.pop_back();
-                // Reprint prompt and buffer after backspace
-                std::cout << "\r\x1b[K"; // Carriage return + clear line
-                print_prompt_and_buffer();
+                std::cout << "\b \b" << std::flush;
             }
-            first_tab_pressed = false; // reset on input change
         } else {
             buffer += c;
             std::cout << c << std::flush;
-            first_tab_pressed = false; // reset on input change
         }
     }
 
     return buffer;
 }
+
 
 
 
@@ -670,6 +663,7 @@ int main() {
   populate_command_trie(AutoComplete);
  enableRawMode();
   while(1){
+ 
    std::string input = read_line_with_autocomplete(AutoComplete);
    Execute_Command(input);
    }
