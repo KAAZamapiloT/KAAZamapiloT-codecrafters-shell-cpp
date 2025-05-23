@@ -197,6 +197,28 @@ void populate_command_trie(CommandTrie& trie) {
         }
     }
 }
+bool command_exists_in_path(const std::string& command) {
+    // If the command contains a slash, it's a path, so check it directly
+    if (command.find('/') != std::string::npos) {
+        return is_executable(command);
+    }
+    
+    // Otherwise, search through PATH directories
+    const char* path_env = std::getenv("PATH");
+    if (!path_env) {
+        return false;
+    }
+    
+    std::vector<std::string> path_dirs = split_path(path_env);
+    for (const auto& dir : path_dirs) {
+        std::string full_path = dir + "/" + command;
+        if (is_executable(full_path)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
 void execute_builtin_with_redirection(const Command& cmd, const CommandHandler& handler) {
     // Save original file descriptors
     int saved_stdin  = dup(STDIN_FILENO);
@@ -436,28 +458,7 @@ void handle_pwd(const Command& cmd){
         perror("getcwd() error");
     }
 }
-bool command_exists_in_path(const std::string& command) {
-    // If the command contains a slash, it's a path, so check it directly
-    if (command.find('/') != std::string::npos) {
-        return is_executable(command);
-    }
-    
-    // Otherwise, search through PATH directories
-    const char* path_env = std::getenv("PATH");
-    if (!path_env) {
-        return false;
-    }
-    
-    std::vector<std::string> path_dirs = split_path(path_env);
-    for (const auto& dir : path_dirs) {
-        std::string full_path = dir + "/" + command;
-        if (is_executable(full_path)) {
-            return true;
-        }
-    }
-    
-    return false;
-}
+
 
  void handle_cd(const Command& cmd){
     if (cmd.args.size() != 2) {
