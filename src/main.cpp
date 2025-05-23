@@ -375,26 +375,7 @@ std::vector<Command> parse_pipeline(const std::vector<std::string>& tokens) {
 
     return pipeline;
 }
-void execute_command(const std::string& input) {
-    auto tokens = tokenize(input);
-    if (tokens.empty()) return;
 
-    // Check for pipeline operator
-    if (std::find(tokens.begin(), tokens.end(), "|") != tokens.end()) {
-        auto pipeline = parse_pipeline(tokens);
-        execute_pipeline(pipeline);
-    } else {
-        Command cmd = parse_command(tokens);
-        if (cmd.executable.empty()) return;
-
-        auto it = command_registry.find(cmd.executable);
-        if (it != command_registry.end()) {
-            execute_builtin_with_redirection(cmd, it->second);
-        } else {
-            execute_external_command(cmd);
-        }
-    }
-}
 
 void execute_pipeline(const std::vector<Command>& pipeline) {
     int num_commands = pipeline.size();
