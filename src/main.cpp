@@ -66,9 +66,81 @@ using CommandHandler = std::function<void(const Command&)>;
 
 std::unordered_map<std::string , CommandHandler> command_registry;
 
+class ShellHistory {
+private:
+    std::vector<std::string> history;
+    size_t max_size;
 
+public:
+    ShellHistory(size_t max_history = 10000) : max_size(max_history) {}
 
+    void add_command(const std::string& command) {
+        // Skip empty commands and history command itself
+        if (command.empty() || command == "history") {
+            return;
+        }
+        
+        // Avoid duplicate consecutive commands
+        if (!history.empty() && history.back() == command) {
+            return;
+        }
+        
+        history.push_back(command);
+        
+        // Keep history size within limit
+        if (history.size() > max_size) {
+            history.erase(history.begin());
+        }
+    }
 
+    void print_history() const {
+        if (history.empty()) {
+            std::cout << "No commands in history.\n";
+            return;
+        }
+        
+        for (size_t i = 0; i < history.size(); ++i) {
+            std::cout << (i + 1) << ": " << history[i] << std::endl;
+        }
+    }
+
+    void clear_history() {
+        history.clear();
+    }
+
+    std::string get_last_command() const {
+        return history.empty() ? "" : history.back();
+    }
+
+    std::string get_command(size_t index) const {
+        if (index > 0 && index <= history.size()) {
+            return history[index - 1];
+        }
+        return "";
+    }
+
+    size_t size() const {
+        return history.size();
+    }
+
+    bool empty() const {
+        return history.empty();
+    }
+
+    // Search for commands containing a substring
+    void search_history(const std::string& pattern) const {
+        bool found = false;
+        for (size_t i = 0; i < history.size(); ++i) {
+            if (history[i].find(pattern) != std::string::npos) {
+                std::cout << (i + 1) << ": " << history[i] << std::endl;
+                found = true;
+            }
+        }
+        if (!found) {
+            std::cout << "No commands found containing: " << pattern << std::endl;
+        }
+    }
+};
 class CommandTrie {
 private:
     struct TrieNode {
@@ -485,6 +557,7 @@ void handle_echo(const Command& cmd) {
   std::cout << "\n";
 }
 
+
 void handle_type(const Command& K){
  if (K.args.size() < 2) {
         std::cerr << "Usage: type <command>\n";
@@ -777,7 +850,7 @@ int main() {
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
   CommandTrie AutoComplete;
-  
+  ShellHistory History(100);
   // Uncomment this block to pass the first stage
   command_registry["echo"] = handle_echo;
   command_registry["type"] = handle_type;
@@ -791,6 +864,8 @@ int main() {
    enableRawMode();
    std::string input = read_line_with_autocomplete(AutoComplete);
    disableRawMode();
+   History.add_command(input);
+   if(input=="history") {History.print_history();continue;}
    Execute_Command(input);
    }
  
