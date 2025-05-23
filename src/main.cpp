@@ -195,10 +195,7 @@ void handle_exit(const Command& cmd) {
     (void)cmd;  // suppress unused-parameter warning
     exit(0);
 }
-void handler(Command cmd){
-    auto it = command_registry.find(cmd.executable());
-    it->second();
-}
+
 void execute_builtin_with_redirection(const Command& cmd, const CommandHandler& handler) {
     // Save original file descriptors
     int saved_stdin  = dup(STDIN_FILENO);
@@ -249,7 +246,7 @@ void execute_builtin_with_redirection(const Command& cmd, const CommandHandler& 
     dup2(saved_stderr, STDERR_FILENO); close(saved_stderr);
 }
 
-td::vector<std::string> tokenize(const std::string& input) {
+std::vector<std::string> tokenize(const std::string& input) {
     std::vector<std::string> tokens;
     std::string token;
     bool in_single_quote = false;
