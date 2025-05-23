@@ -617,19 +617,16 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
 
             }else 
             if (completions.size()==1) {
-                std::string lcp = trie.get_longest_common_prefix(buffer);
-
-                if (lcp.size() > buffer.size()) {
-                    std::string to_add = lcp.substr(buffer.size());
-                    std::cout << to_add << " ";  // Add trailing space here
-                    buffer += to_add + " ";
-                } else {
-                    std::cout << "\n";
-                    for (const auto& suggestion : completions)
-                        std::cout << suggestion << "  ";
-                    std::cout << "\n$ " << buffer << std::flush;
-                }
-                first_tab_pressed=false;
+             const std::string& match = completions[0];
+              // Compute what's missing
+              std::string to_add = match.substr(buffer.size());
+              // Print it plus a space
+              std::cout << to_add << ' ' << std::flush;
+              // Update the buffer to include it and the space
+              buffer += to_add;
+              buffer += ' ';
+    // Reset the tab state
+    first_tab_pressed = false;
             }else{
                   std::cout << "\x07" << std::flush;
                   first_tab_pressed=false;
