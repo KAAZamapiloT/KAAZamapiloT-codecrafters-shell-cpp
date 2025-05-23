@@ -103,7 +103,16 @@ public:
             std::cout << (i + 1) << " " << history[i] << std::endl;
         }
     }
+   void print_int(int n){
+    if (history.empty()) {
+            std::cout << "No commands in history.\n";
+            return;
+        }
+for (size_t i = 0; i < n; ++i) {
+            std::cout << (i + 1) << " " << history[i] << std::endl;
+        }
 
+   }
     void clear_history() {
         history.clear();
     }
@@ -719,7 +728,12 @@ std::vector<std::string> tokenize(const std::string& input) {
 
 ShellHistory History(100);
 void  handle_history(const Command& cmd){
+    if(cmd.args.size()==0){
 History.print_history();
+    }else if(cmd.args.size()==2){
+        History.print_int(stoi(cmd.args[1]));
+    }
+
 }
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
