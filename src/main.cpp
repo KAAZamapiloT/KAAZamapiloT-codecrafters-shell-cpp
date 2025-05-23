@@ -197,7 +197,100 @@ void populate_command_trie(CommandTrie& trie) {
         }
     }
 }
+void execute_builtin_with_redirection(const Command& cmd, const CommandHandler& handler) {
+    // Save original file descriptors
+    int saved_stdin  = dup(STDIN_FILENO);
+    int saved_stdout = dup(STDOUT_FILENO);
+    int saved_stderr = dup(STDERR_FILENO);
 
+    // Redirect stdin if requested
+    if (!cmd.stdin_file.empty()) {
+        int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
+        if (fd < 0) {
+            std::cerr << "open " << cmd.stdin_file << ": " << strerror(errno) << "\n";
+        } else {
+            dup2(fd, STDIN_FILENO);
+            close(fd);
+        }
+    }
+
+    // Redirect stdout if requested
+    if (!cmd.stdout_file.empty()) {
+        int flags = O_WRONLY | O_CREAT | (cmd.append_stdout ? O_APPEND : O_TRUNC);
+        int fd = open(cmd.stdout_file.c_str(), flags, 0644);
+        if (fd < 0) {
+            std::cerr << "open " << cmd.stdout_file << ": " << strerror(errno) << "\n";
+        } else {
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+        }
+    }
+
+    // Redirect stderr if requested
+    if (!cmd.stderr_file.empty()) {
+        int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
+        int fd = open(cmd.stderr_file.c_str(), flags, 0644);
+        if (fd < 0) {
+            std::cerr << "open " << cmd.stderr_file << ": " << strerror(errno) << "\n";
+        } else {
+            dup2(fd, STDERR_FILENO);
+            close(fd);
+        }
+    }
+
+    // Execute the builtin command
+    handler(cmd);
+
+    // Restore original file descriptors
+    dup2(saved_stdin,  STDIN_FILENO);  close(saved_stdin);
+    dup2(saved_stdout, STDOUT_FILENO); close(saved_stdout);
+    dup2(saved_stderr, STDERR_FILENO); close(saved_stderr);
+}
+
+void execute_external_command(const Command& cmd) {
+    std::vector<char*> args;
+    for (const auto& arg : cmd.args) {
+        args.push_back(const_cast<char*>(arg.c_str()));
+    }
+    args.push_back(nullptr);
+  if (!command_exists_in_path(cmd.executable)) {
+        std::cerr << cmd.executable << ": command not found\n";
+        return;
+    }
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Redirections
+        if (!cmd.stdin_file.empty()) {
+            int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
+            if (fd < 0) { perror("open stdin"); exit(1); }
+            dup2(fd, STDIN_FILENO);
+            close(fd);
+        }
+        if (!cmd.stdout_file.empty()) {
+            int flags = O_WRONLY | O_CREAT | (cmd.append_stdout ? O_APPEND : O_TRUNC);
+            int fd = open(cmd.stdout_file.c_str(), flags, 0644);
+            if (fd < 0) { perror("open stdout"); exit(1); }
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+        }
+        if (!cmd.stderr_file.empty()) {
+            int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
+            int fd = open(cmd.stderr_file.c_str(), flags, 0644);
+            if (fd < 0) { perror("open stderr"); exit(1); }
+            dup2(fd, STDERR_FILENO);
+            close(fd);
+        }
+
+        execvp(cmd.executable.c_str(), args.data());
+        perror("Invalid Command");
+        exit(1);
+    } else if (pid > 0) {
+        int status;
+        waitpid(pid, &status, 0);
+    } else {
+        std::cerr << "fork failed\n";
+    }
+}
 
 Command parse_command(std::vector<std::string>& tokens) {
     Command cmd;
@@ -366,51 +459,6 @@ bool command_exists_in_path(const std::string& command) {
     return false;
 }
 
-void execute_external_command(const Command& cmd) {
-    std::vector<char*> args;
-    for (const auto& arg : cmd.args) {
-        args.push_back(const_cast<char*>(arg.c_str()));
-    }
-    args.push_back(nullptr);
-  if (!command_exists_in_path(cmd.executable)) {
-        std::cerr << cmd.executable << ": command not found\n";
-        return;
-    }
-    pid_t pid = fork();
-    if (pid == 0) {
-        // Redirections
-        if (!cmd.stdin_file.empty()) {
-            int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
-            if (fd < 0) { perror("open stdin"); exit(1); }
-            dup2(fd, STDIN_FILENO);
-            close(fd);
-        }
-        if (!cmd.stdout_file.empty()) {
-            int flags = O_WRONLY | O_CREAT | (cmd.append_stdout ? O_APPEND : O_TRUNC);
-            int fd = open(cmd.stdout_file.c_str(), flags, 0644);
-            if (fd < 0) { perror("open stdout"); exit(1); }
-            dup2(fd, STDOUT_FILENO);
-            close(fd);
-        }
-        if (!cmd.stderr_file.empty()) {
-            int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
-            int fd = open(cmd.stderr_file.c_str(), flags, 0644);
-            if (fd < 0) { perror("open stderr"); exit(1); }
-            dup2(fd, STDERR_FILENO);
-            close(fd);
-        }
-
-        execvp(cmd.executable.c_str(), args.data());
-        perror("Invalid Command");
-        exit(1);
-    } else if (pid > 0) {
-        int status;
-        waitpid(pid, &status, 0);
-    } else {
-        std::cerr << "fork failed\n";
-    }
-}
-
  void handle_cd(const Command& cmd){
     if (cmd.args.size() != 2) {
         std::cerr << "Usage: cd <directory>\n";
@@ -473,55 +521,7 @@ void handle_exit(const Command& cmd) {
     exit(0);
 }
 
-void execute_builtin_with_redirection(const Command& cmd, const CommandHandler& handler) {
-    // Save original file descriptors
-    int saved_stdin  = dup(STDIN_FILENO);
-    int saved_stdout = dup(STDOUT_FILENO);
-    int saved_stderr = dup(STDERR_FILENO);
 
-    // Redirect stdin if requested
-    if (!cmd.stdin_file.empty()) {
-        int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
-        if (fd < 0) {
-            std::cerr << "open " << cmd.stdin_file << ": " << strerror(errno) << "\n";
-        } else {
-            dup2(fd, STDIN_FILENO);
-            close(fd);
-        }
-    }
-
-    // Redirect stdout if requested
-    if (!cmd.stdout_file.empty()) {
-        int flags = O_WRONLY | O_CREAT | (cmd.append_stdout ? O_APPEND : O_TRUNC);
-        int fd = open(cmd.stdout_file.c_str(), flags, 0644);
-        if (fd < 0) {
-            std::cerr << "open " << cmd.stdout_file << ": " << strerror(errno) << "\n";
-        } else {
-            dup2(fd, STDOUT_FILENO);
-            close(fd);
-        }
-    }
-
-    // Redirect stderr if requested
-    if (!cmd.stderr_file.empty()) {
-        int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
-        int fd = open(cmd.stderr_file.c_str(), flags, 0644);
-        if (fd < 0) {
-            std::cerr << "open " << cmd.stderr_file << ": " << strerror(errno) << "\n";
-        } else {
-            dup2(fd, STDERR_FILENO);
-            close(fd);
-        }
-    }
-
-    // Execute the builtin command
-    handler(cmd);
-
-    // Restore original file descriptors
-    dup2(saved_stdin,  STDIN_FILENO);  close(saved_stdin);
-    dup2(saved_stdout, STDOUT_FILENO); close(saved_stdout);
-    dup2(saved_stderr, STDERR_FILENO); close(saved_stderr);
-}
 
 std::vector<std::string> tokenize(const std::string& input) {
     std::vector<std::string> tokens;
