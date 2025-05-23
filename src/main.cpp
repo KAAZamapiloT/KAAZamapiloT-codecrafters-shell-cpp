@@ -590,7 +590,7 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
     char c;
 
     std::cout << "$ " << std::flush;
-
+    bool first_tab_pressed=false;
     while (true) {
         ssize_t n = read(STDIN_FILENO, &c, 1);
         if (n <= 0) break;
@@ -600,6 +600,18 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
             break;
         } else if (c == '\t') {
             auto completions = trie.find_completions(buffer);
+            if(completions.size()>1){
+                       if(!first_tab_pressed){
+                        first_tab_pressed=true;
+                        std::cout<<'\a'<<std::flush;
+
+                       }else{
+                        for(auto it:completions){
+                            std::cout<<it<<"  ";
+                        }
+                       }
+
+            }else 
             if (!completions.empty()) {
                 std::string lcp = trie.get_longest_common_prefix(buffer);
 
