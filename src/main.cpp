@@ -267,8 +267,10 @@ std::vector<char*> argv;
 void execute_pipeline(const std::vector<Command>& pipeline) {
     int n = pipeline.size();
     std::vector<int> pipe_fds(2 * (n - 1));
+
+    // Create necessary pipes
     for (int i = 0; i < n - 1; ++i) {
-        if (pipe(&pipe_fds[2*i]) < 0) {
+        if (pipe(&pipe_fds[2 * i]) < 0) {
             perror("pipe");
             return;
         }
@@ -278,26 +280,21 @@ void execute_pipeline(const std::vector<Command>& pipeline) {
         bool is_last = (i == n - 1);
         bool is_builtin = command_registry.count(pipeline[i].executable);
 
-        if (is_builtin && n == 1) {
-            // Built-in, no pipe needed
-            command_registry[pipeline[i].executable](pipeline[i].args);
-            return;
-        }
-
         pid_t pid = fork();
         if (pid == 0) {
-            // Setup pipe input
+            // Set up pipe read end if not first
             if (i > 0) {
-                dup2(pipe_fds[2*(i-1)], STDIN_FILENO);
+                dup2(pipe_fds[2 * (i - 1)], STDIN_FILENO);
             }
-            // Setup pipe output
+            // Set up pipe write end if not last
             if (!is_last) {
-                dup2(pipe_fds[2*i + 1], STDOUT_FILENO);
+                dup2(pipe_fds[2 * i + 1], STDOUT_FILENO);
             }
+            // Close all pipe fds in child
             for (int fd : pipe_fds) close(fd);
 
             if (is_builtin) {
-                command_registry[pipeline[i].executable](pipeline[i].args);
+                command_registry[pipeline[i].executable](pipeline[i]);
                 exit(0);
             } else {
                 execute_command(pipeline[i]);
@@ -308,7 +305,9 @@ void execute_pipeline(const std::vector<Command>& pipeline) {
         }
     }
 
+    // Close all pipe fds in parent
     for (int fd : pipe_fds) close(fd);
+    // Wait for all child processes
     for (int i = 0; i < n; ++i) wait(nullptr);
 }
 
