@@ -108,7 +108,7 @@ public:
             std::cout << "No commands in history.\n";
             return;
         }
-for (size_t i = 0; i < n; ++i) {
+for (size_t i = history.size()-1; i >=history.size()-n; ++i) {
             std::cout << (i + 1) << " " << history[i] << std::endl;
         }
 
