@@ -831,9 +831,9 @@ if (in_escape) {
                         history_position = 0;
                     }
 
-                    if (history_position < history.size()) {
+                    if (history_position < History.size()) {
                         history_position++;
-                        buffer = history.get_command(history.size() - history_position + 1);
+                        buffer = History.get_command(History.size() - history_position + 1);
                         refresh_line();
                     }
                 }
@@ -844,7 +844,7 @@ if (in_escape) {
                             buffer = saved_buffer;
                             history_browsing = false;
                         } else {
-                            buffer = history.get_command(history.size() - history_position + 1);
+                            buffer = History.get_command(History.size() - history_position + 1);
                         }
                         refresh_line();
                     }
