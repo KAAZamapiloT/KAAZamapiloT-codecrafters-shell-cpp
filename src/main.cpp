@@ -251,7 +251,7 @@ std::vector<Command> parse_pipeline(const std::string& line) {
 void execute_command(const Command& cmd) {
     auto it = command_registry.find(cmd.executable);
     if(it!=command_registry.end()){
-     it->second();
+     it->second(cmd);
      exit(0);
     }else{
 std::vector<char*> argv;
@@ -278,20 +278,30 @@ void execute_pipeline(const std::vector<Command>& pipeline) {
         bool is_last = (i == n - 1);
         bool is_builtin = command_registry.count(pipeline[i].executable);
 
-        // Built-in as last stage
-        if (is_last && is_builtin) {
-            if (i > 0) dup2(pipe_fds[2*(i-1)], STDIN_FILENO);
-            for (int fd : pipe_fds) close(fd);
+        if (is_builtin && n == 1) {
+            // Built-in, no pipe needed
             command_registry[pipeline[i].executable](pipeline[i].args);
             return;
         }
 
         pid_t pid = fork();
         if (pid == 0) {
-            if (i > 0) dup2(pipe_fds[2*(i-1)], STDIN_FILENO);
-            if (!is_last) dup2(pipe_fds[2*i + 1], STDOUT_FILENO);
+            // Setup pipe input
+            if (i > 0) {
+                dup2(pipe_fds[2*(i-1)], STDIN_FILENO);
+            }
+            // Setup pipe output
+            if (!is_last) {
+                dup2(pipe_fds[2*i + 1], STDOUT_FILENO);
+            }
             for (int fd : pipe_fds) close(fd);
-            execute_command(pipeline[i]);
+
+            if (is_builtin) {
+                command_registry[pipeline[i].executable](pipeline[i].args);
+                exit(0);
+            } else {
+                execute_command(pipeline[i]);
+            }
         } else if (pid < 0) {
             perror("fork");
             return;
