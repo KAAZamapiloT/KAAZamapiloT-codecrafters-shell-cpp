@@ -197,6 +197,10 @@ void populate_command_trie(CommandTrie& trie) {
         }
     }
 }
+bool is_executable(const std::string& path) {
+    // access with X_OK checks executable permission
+    return access(path.c_str(), X_OK) == 0;
+}
 bool command_exists_in_path(const std::string& command) {
     // If the command contains a slash, it's a path, so check it directly
     if (command.find('/') != std::string::npos) {
@@ -446,10 +450,7 @@ void execute_pipeline(const std::vector<Command>& pipeline) {
     for (int i = 0; i < n; ++i) wait(nullptr);
 }
 
-bool is_executable(const std::string& path) {
-    // access with X_OK checks executable permission
-    return access(path.c_str(), X_OK) == 0;
-}
+
 void handle_pwd(const Command& cmd){
  char cwd[PATH_MAX];
   if (getcwd(cwd, sizeof(cwd)) != nullptr) {
