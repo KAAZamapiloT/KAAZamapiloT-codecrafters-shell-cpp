@@ -13,12 +13,152 @@
  #include <cstring>  // For strerror
 #include <cerrno>   // For errno
 #include <fcntl.h> 
-
+#include <readline/readline.h>
+#include <readline/history.h>
+#include <termios.h>
 /*
 git add .
 git commit --allow-empty -m "[any message]"
 git push origin master
 */
+
+struct termios orig_termios;
+
+void disableRawMode() {
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+}
+
+void enableRawMode() {
+  tcgetattr(STDIN_FILENO, &orig_termios);
+  atexit(disableRawMode); // auto-disable when program exits
+
+  struct termios raw = orig_termios;
+  raw.c_lflag &= ~(ECHO | ICANON); // turn off echo and canonical mode
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+
+class CommandTrie {
+private:
+    struct TrieNode {
+        std::unordered_map<char, std::unique_ptr<TrieNode>> children;
+        bool is_complete_command = false;
+        std::string full_command; // Store complete command for easy retrieval
+    };
+    
+    std::unique_ptr<TrieNode> root;
+
+public:
+    CommandTrie() : root(std::make_unique<TrieNode>()) {}
+    
+    // Insert a command into the trie
+    void insert_command(const std::string& command) {
+        TrieNode* current = root.get();
+        
+        // Navigate through each character, creating nodes as needed
+        for (char c : command) {
+            if (current->children.find(c) == current->children.end()) {
+                current->children[c] = std::make_unique<TrieNode>();
+            }
+            current = current->children[c].get();
+        }
+        
+        // Mark this node as representing a complete command
+        current->is_complete_command = true;
+        current->full_command = command;
+    }
+    
+    // Find all possible completions for a given prefix
+    std::vector<std::string> find_completions(const std::string& prefix) {
+        TrieNode* current = root.get();
+        
+        // First, navigate to the prefix location in the trie
+        for (char c : prefix) {
+            if (current->children.find(c) == current->children.end()) {
+                return {}; // Prefix doesn't exist, no completions possible
+            }
+            current = current->children[c].get();
+        }
+        
+        // Now collect all complete commands that extend this prefix
+        std::vector<std::string> completions;
+        collect_completions(current, completions);
+        return completions;
+    }
+std::string get_longest_common_prefix(const std::string& prefix) {
+    TrieNode* current = root.get();
+
+    // Navigate to prefix node
+    for (char c : prefix) {
+        if (current->children.find(c) == current->children.end()) {
+            return prefix; // No such prefix in trie
+        }
+        current = current->children[c].get();
+    }
+
+    std::string lcp = prefix;
+
+    // Continue down trie until we hit:
+    // - multiple branches (ambiguous)
+    // - a complete command (end of unique path)
+    while (current->children.size() == 1 && !current->is_complete_command) {
+        auto it = current->children.begin(); // only one child
+        lcp += it->first;
+        current = it->second.get();
+    }
+
+    return lcp;
+}
+private:
+    // Recursively collect all completions from a given node
+    void collect_completions(TrieNode* node, std::vector<std::string>& completions) {
+        if (node->is_complete_command) {
+            completions.push_back(node->full_command);
+        }
+        
+        for (auto& [char_key, child_node] : node->children) {
+            collect_completions(child_node.get(), completions);
+        }
+    }
+};
+
+void populate_command_trie(CommandTrie& trie) {
+    // Add built-in commands
+    for (const auto& [command_name, handler] : command_registry) {
+        trie.insert_command(command_name);
+    }
+    
+    // Add external commands from PATH
+    const char* path_env = std::getenv("PATH");
+    if (path_env) {
+        std::vector<std::string> path_dirs = split_path(path_env);
+        
+        for (const std::string& dir : path_dirs) {
+            // Scan each directory for executable files
+            scan_directory_for_executables(dir, trie);
+        }
+    }
+}
+
+char** command_completion(const char* text, int start, int end) {
+    // text contains what user has typed so far
+    // start and end indicate position in the line
+    
+    std::vector<std::string> matches = command_trie.find_completions(text);
+    
+    // Convert to format expected by readline
+    char** completion_matches = nullptr;
+    if (!matches.empty()) {
+        completion_matches = (char**)malloc(sizeof(char*) * (matches.size() + 1));
+        for (size_t i = 0; i < matches.size(); ++i) {
+            completion_matches[i] = strdup(matches[i].c_str());
+        }
+        completion_matches[matches.size()] = nullptr;
+    }
+    
+    return completion_matches;
+}
+
 struct Command{
     std::string executable;
     std::vector<std::string> args;
@@ -414,12 +554,54 @@ if (it != command_registry.end()) {
 }
 
 
+std::string read_line_with_autocomplete(CommandTrie& trie) {
+    std::string buffer;
+    char c;
 
+    while (true) {
+        ssize_t n = read(STDIN_FILENO, &c, 1);
+        if (n <= 0) break;
+
+        if (c == '\n') {
+            std::cout << std::endl;
+            break;
+        } else if (c == '\t') {
+            // handle autocomplete
+            auto completions = trie.find_completions(buffer);
+            if (!completions.empty()) {
+                std::string lcp = trie.get_longest_common_prefix(buffer);
+
+                if (lcp.size() > buffer.size()) {
+                    std::string to_add = lcp.substr(buffer.size());
+                    std::cout << to_add;
+                    buffer += to_add;
+                } else {
+                    std::cout << "\n"; // show suggestions if ambiguous
+                    for (const auto& suggestion : completions)
+                        std::cout << suggestion << "  ";
+                    std::cout << "\n$ " << buffer;
+                }
+            }
+        } else if (c == 127) {
+            // handle backspace
+            if (!buffer.empty()) {
+                buffer.pop_back();
+                std::cout << "\b \b"; // erase last char
+            }
+        } else {
+            buffer += c;
+            std::cout << c;
+        }
+    }
+
+    return buffer;
+}
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
-
+  CommandTrie AutoComplete;
+  
   // Uncomment this block to pass the first stage
   command_registry["echo"] = handle_echo;
   command_registry["type"] = handle_type;
@@ -427,12 +609,12 @@ int main() {
   command_registry["pwd"] = handle_pwd;
   command_registry["cd"] = handle_cd;
   command_registry["exit0"] = handle_exit;
-
- 
+  populate_command_trie(AutoComplete);
+ enableRawMode();
   while(1){
   std::cout << "$ ";
   std::string input;
-  std::getline(std::cin, input);
+   std::string input = read_line_with_autocomplete(AutoComplete);
    Execute_Command(input);
    }
  
