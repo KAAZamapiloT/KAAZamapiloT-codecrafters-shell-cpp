@@ -616,7 +616,8 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
                   std::string to_add = lcp.substr(buffer.size());
                   std::cout << to_add << " ";  // ✅ Add trailing space
                   buffer += to_add + " ";      // ✅ Update buffer
-                  first_tab_pressed=false;
+                }
+                first_tab_pressed=false;
             } else {
                 // Multiple completions
                 if (!first_tab_pressed) {
