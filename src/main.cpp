@@ -103,16 +103,21 @@ public:
             std::cout << (i + 1) << " " << history[i] << std::endl;
         }
     }
-   void print_int(int n){
-    if (history.empty()) {
+   void print_int(int limit = -1) const {
+        if (history.empty()) {
             std::cout << "No commands in history.\n";
             return;
         }
-for (size_t i = history.size()-1; i >=history.size()-n; ++i) {
-            std::cout << (i + 1) << " " << history[i] << std::endl;
+        
+        size_t start = 0;
+        if (limit > 0 && static_cast<size_t>(limit) < history.size()) {
+            start = history.size() - limit;
         }
-
-   }
+        
+        for (size_t i = start; i < history.size(); ++i) {
+            std::cout << "    " << (i + 1) << "  " << history[i] << std::endl;
+        }
+    }
     void clear_history() {
         history.clear();
     }
