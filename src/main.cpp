@@ -20,9 +20,56 @@ git commit --allow-empty -m "[any message]"
 git push origin master
 */
 
-using CommandHandler = std::function<void(const std::vector<std::string>&)>;
+using CommandHandler = std::function<void(const Command&)>;
+
 std::unordered_map<std::string , CommandHandler> command_registry;
 
+
+struct Command{
+    std::string executable;
+    std::vector<std::string> args;
+
+    std::string stdin_file;
+    std::string stdout_file;
+    std::string stderr_file;
+
+    bool append_stdout = false;
+    bool append_stderr = false;
+};
+
+
+Command parse_command(std::vector<std::string>& tokens) {
+    Command cmd;
+
+    if (tokens.empty()) return cmd;
+
+    cmd.executable = tokens[0];
+    cmd.args.push_back(tokens[0]);
+
+    for (size_t i = 1; i < tokens.size(); ++i) {
+        const std::string& token = tokens[i];
+
+        if (token == "<" && i + 1 < tokens.size()) {
+            cmd.stdin_file = tokens[++i];
+        } else if ((token == ">" || token == "1>") && i + 1 < tokens.size()) {
+            cmd.stdout_file = tokens[++i];
+            cmd.append_stdout = false;
+        } else if (token == ">>" && i + 1 < tokens.size()) {
+            cmd.stdout_file = tokens[++i];
+            cmd.append_stdout = true;
+        } else if (token == "2>" && i + 1 < tokens.size()) {
+            cmd.stderr_file = tokens[++i];
+            cmd.append_stderr = false;
+        } else if (token == "2>>" && i + 1 < tokens.size()) {
+            cmd.stderr_file = tokens[++i];
+            cmd.append_stderr = true;
+        } else {
+            cmd.args.push_back(token);
+        }
+    }
+
+    return cmd;
+}
 
 std::vector<std::string> split_path(const std::string& path) {
     std::vector<std::string> dirs;
@@ -37,7 +84,7 @@ bool is_executable(const std::string& path) {
     // access with X_OK checks executable permission
     return access(path.c_str(), X_OK) == 0;
 }
-void handle_pwd(const std::vector<std::string>& tokens){
+void handle_pwd(const Command& cmd){
  char cwd[PATH_MAX];
   if (getcwd(cwd, sizeof(cwd)) != nullptr) {
         std::cout << cwd << std::endl;
@@ -45,88 +92,55 @@ void handle_pwd(const std::vector<std::string>& tokens){
         perror("getcwd() error");
     }
 }
-void exeute_external_command( std::vector<std::string>& tokens){
- if (tokens.empty()) return;
- auto exe=tokens[0];
- std::vector<char*> args;
-
-std::string input_file;
-std::string output_file;
-bool append_output = false;
-bool redirect_stdout = false;
-for (auto it = tokens.begin(); it != tokens.end();){
-if (*it == "<") {
-            if ((it + 1) == tokens.end()) {
-                std::cerr << "Syntax error: expected file after '<'\n";
-                return;
-            }
-
-            input_file = *(it + 1);
-            it = tokens.erase(it, it + 2);
-        }else if (*it == ">"||*it == "1>") {
-            if ((it + 1) == tokens.end()) {
-                std::cerr << "Syntax error: expected file after '>'\n";
-                return;
-            }
-
-         output_file = *(it + 1);
-          redirect_stdout = true;
-            append_output = false;
-            it = tokens.erase(it, it + 2);
-        }
-          else if(*it == ">>"){
-         if ((it + 1) == tokens.end()) {
-                std::cerr << "Syntax error: expected file after '>>'\n";
-                return;
-            }
-            output_file = *(it + 1);
-            append_output = true;
-            it = tokens.erase(it, it + 2);
-          }else{
-            ++it;
-          }
-            
-}
-
-for (const std::string& token : tokens) {
-        args.push_back(const_cast<char*>(token.c_str()));
+void execute_external_command(const Command& cmd) {
+    std::vector<char*> args;
+    for (const auto& arg : cmd.args) {
+        args.push_back(const_cast<char*>(arg.c_str()));
     }
-args.push_back(nullptr);
+    args.push_back(nullptr);
 
-pid_t pid =fork();
-
-       if(pid==0){
-             if (redirect_stdout) {
-            int flags = O_WRONLY | O_CREAT | (append_output ? O_APPEND : O_TRUNC);
-            int fd = open(output_file.c_str(), flags, 0644);
-            if (fd < 0) {
-                perror("open");
-                exit(1);
-            }
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Redirections
+        if (!cmd.stdin_file.empty()) {
+            int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
+            if (fd < 0) { perror("open stdin"); exit(1); }
+            dup2(fd, STDIN_FILENO);
+            close(fd);
+        }
+        if (!cmd.stdout_file.empty()) {
+            int flags = O_WRONLY | O_CREAT | (cmd.append_stdout ? O_APPEND : O_TRUNC);
+            int fd = open(cmd.stdout_file.c_str(), flags, 0644);
+            if (fd < 0) { perror("open stdout"); exit(1); }
             dup2(fd, STDOUT_FILENO);
             close(fd);
         }
+        if (!cmd.stderr_file.empty()) {
+            int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
+            int fd = open(cmd.stderr_file.c_str(), flags, 0644);
+            if (fd < 0) { perror("open stderr"); exit(1); }
+            dup2(fd, STDERR_FILENO);
+            close(fd);
+        }
 
-        execvp(args[0], args.data());
-        std::cerr << args[0] << ": command not found\n";
-        exit(1); // Only if execvp fails
-}else if(pid>0){
- int status;
+        execvp(cmd.executable.c_str(), args.data());
+        perror("execvp failed");
+        exit(1);
+    } else if (pid > 0) {
+        int status;
         waitpid(pid, &status, 0);
-       
-}else{
-  std::cerr<<"fork failed\n";
+    } else {
+        std::cerr << "fork failed\n";
+    }
 }
 
- }
-
- void handle_cd(const std::vector<std::string>& tokens){
-  if (tokens.size() != 2) {
+ void handle_cd(const Command& cmd){
+  if (cmd.args.size() != 2) {
         std::cerr << "Usage: cd <directory>\n";
         return;
     }
-  const std::string path=tokens[1];
-  if(tokens[1]=="~") {
+  const std::string path=cmd.args[1];
+  if(cmd.args[1]=="~") {
     chdir(getenv("HOME"));
     return;
   }
@@ -134,19 +148,20 @@ pid_t pid =fork();
 
 }
 
-void handle_echo(const std::vector<std::string>& tokens) {
-    for (size_t i = 1; i < tokens.size(); ++i) {
-        std::cout << tokens[i];
-        if (i != tokens.size() - 1) std::cout << " ";
-    }
-    std::cout << std::endl;
+void handle_echo(const Command& cmd) {
+  for (size_t i = 1; i < cmd.args.size(); ++i) {
+    std::cout << cmd.args[i];
+    if (i + 1 < cmd.args.size()) std::cout << " ";
+  }
+  std::cout << "\n";
 }
-void handle_type(const std::vector<std::string>& tokens){
- if (tokens.size() < 2) {
+
+void handle_type(const Command& K){
+ if (K.args.size() < 2) {
         std::cerr << "Usage: type <command>\n";
         return;
     }
-  const std::string& cmd = tokens[1];
+  const std::string& cmd = K.args[1];
   const char* path_env = std::getenv("PATH");
     if (!path_env) {
         std::cout << cmd << ": not found\n";
@@ -170,8 +185,62 @@ void handle_type(const std::vector<std::string>& tokens){
   std::cout << cmd << ": not found\n";
 }
 }
-void handle_exit(const std::vector<std::string>& tokens){
-  exit(0);
+void handle_exit(const Command& cmd) {
+    (void)cmd;  // suppress unused-parameter warning
+    exit(0);
+}
+void execute_builtin_with_redirection(const Command& cmd,
+                                      const CommandHandler& handler) {
+    // 1) Save originals
+    int saved_stdin  = dup(STDIN_FILENO);
+    int saved_stdout = dup(STDOUT_FILENO);
+    int saved_stderr = dup(STDERR_FILENO);
+
+    // 2) Redirect stdin if requested
+    if (!cmd.stdin_file.empty()) {
+        int fd = open(cmd.stdin_file.c_str(), O_RDONLY);
+        if (fd < 0) {
+            std::cerr << "open " << cmd.stdin_file << ": "
+                      << strerror(errno) << "\n";
+        } else {
+            dup2(fd, STDIN_FILENO);
+            close(fd);
+        }
+    }
+
+    // 3) Redirect stdout if requested
+    if (!cmd.stdout_file.empty()) {
+        int flags = O_WRONLY | O_CREAT | (cmd.append_stdout ? O_APPEND : O_TRUNC);
+        int fd = open(cmd.stdout_file.c_str(), flags, 0644);
+        if (fd < 0) {
+            std::cerr << "open " << cmd.stdout_file << ": "
+                      << strerror(errno) << "\n";
+        } else {
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+        }
+    }
+
+    // 4) Redirect stderr if requested
+    if (!cmd.stderr_file.empty()) {
+        int flags = O_WRONLY | O_CREAT | (cmd.append_stderr ? O_APPEND : O_TRUNC);
+        int fd = open(cmd.stderr_file.c_str(), flags, 0644);
+        if (fd < 0) {
+            std::cerr << "open " << cmd.stderr_file << ": "
+                      << strerror(errno) << "\n";
+        } else {
+            dup2(fd, STDERR_FILENO);
+            close(fd);
+        }
+    }
+
+    // 5) Call the builtin
+    handler(cmd);
+
+    // 6) Restore originals
+    dup2(saved_stdin,  STDIN_FILENO);  close(saved_stdin);
+    dup2(saved_stdout, STDOUT_FILENO); close(saved_stdout);
+    dup2(saved_stderr, STDERR_FILENO); close(saved_stderr);
 }
 std::vector<std::string> tokenize(std::string input){
    std::istringstream iss(input);
@@ -189,6 +258,9 @@ std::vector<std::string> tokenize(std::string input){
             escaping = false;
             continue;
         }
+        if(c=='>'||(c=='1'&&input[i+1]=='>')&&input[i+1]!='>'){
+            token+='>';
+        }else 
          if (c == '\\') {
             // Inside double quotes: escape only certain characters
             if (in_double_quote) {
@@ -221,6 +293,38 @@ std::vector<std::string> tokenize(std::string input){
         } else if (c == '"' && !in_single_quote) {
             in_double_quote = !in_double_quote;  // toggle double quote mode
         } else if (std::isspace(c) && !in_single_quote && !in_double_quote) {
+//.....................................HANDLEING REDIRECTION...................//
+          if (c == '>') {
+            // Flush current token if exists
+            if (!token.empty()) {
+                tokens.push_back(token);
+                token.clear();
+            }
+
+            // Check for >>
+            if (i + 1 < input.size() && input[i + 1] == '>') {
+                tokens.push_back(">>");
+                i++;  // Skip next '>'
+            } else {
+                tokens.push_back(">");
+            }
+            continue;
+        }
+
+        if (c == '1' || c == '2') {
+            // Check for 1> or 2>
+            if (i + 1 < input.size() && input[i + 1] == '>') {
+                if (!token.empty()) {
+                    tokens.push_back(token);
+                    token.clear();
+                }
+                tokens.push_back(std::string(1, c) + ">");
+                i++; // skip '>'
+                continue;
+            }
+        }
+
+//.....................................HANDLEING REDIRECTION...................//
             if (!token.empty()) {
                 tokens.push_back(token);
                 token.clear();
@@ -240,18 +344,22 @@ std::vector<std::string> tokenize(std::string input){
     }
     return tokens;
 }
-void Execute_Command(const std::string& input){
-
+void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
-    
-    auto it = command_registry.find(tokens[0]);
-    if (it != command_registry.end()) {
-        it->second(tokens); // Call the handler
-    } else {
-      exeute_external_command(tokens);
-       // std::cout << tokens[0] << ": command not found\n";
-    }
+
+Command cmd = parse_command(tokens);
+if (cmd.executable.empty()) return;
+
+auto it  = command_registry.find(cmd.executable);
+
+if (it != command_registry.end()) {
+    //it->second(cmd);
+    execute_builtin_with_redirection(cmd,it->second);
+} else {
+    execute_external_command(cmd);
+}
+
 }
 
 
@@ -267,6 +375,8 @@ int main() {
   command_registry["exit"] = handle_exit;
   command_registry["pwd"] = handle_pwd;
   command_registry["cd"] = handle_cd;
+  command_registry["exit0"] = handle_exit;
+
  
   while(1){
   std::cout << "$ ";
