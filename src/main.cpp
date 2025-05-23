@@ -139,7 +139,7 @@ std::vector<std::string> tokenize(std::string input){
             continue;
         }
 
-        if (c == '\\') {
+        if (c == '\\'&&!in_double_quote&&!in_single_quote) {
             escaping = true;
         } else if (c == '\'' && !in_double_quote) {
             in_single_quote = !in_single_quote;  // toggle single quote mode
@@ -150,7 +150,9 @@ std::vector<std::string> tokenize(std::string input){
                 tokens.push_back(token);
                 token.clear();
             }
-        } else {
+        } else if(c=='\\'&&!escaping&&!in_double_quote&&!in_single_quote){
+            token+=" ";            
+        }else {
             token += c;
         }
     }
