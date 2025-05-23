@@ -16,6 +16,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <termios.h>
+#include<memory>
 /*
 git add .
 git commit --allow-empty -m "[any message]"
@@ -144,7 +145,7 @@ char** command_completion(const char* text, int start, int end) {
     // text contains what user has typed so far
     // start and end indicate position in the line
     
-    std::vector<std::string> matches = command_trie.find_completions(text);
+std::vector<std::string> matches = command_trie.find_completions(text);
     
     // Convert to format expected by readline
     char** completion_matches = nullptr;
@@ -613,7 +614,6 @@ int main() {
  enableRawMode();
   while(1){
   std::cout << "$ ";
-  std::string input;
    std::string input = read_line_with_autocomplete(AutoComplete);
    Execute_Command(input);
    }
