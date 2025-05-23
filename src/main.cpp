@@ -791,10 +791,11 @@ int main() {
   command_registry["cd"] = handle_cd;
   //command_registry["exit0"] = handle_exit;
   populate_command_trie(AutoComplete);
- enableRawMode();
-  while(1){
  
+  while(1){
+  enableRawMode();
    std::string input = read_line_with_autocomplete(AutoComplete);
+   disableRawMode();
    Execute_Command(input);
    }
  
