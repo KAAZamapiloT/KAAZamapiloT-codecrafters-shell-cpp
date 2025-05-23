@@ -150,7 +150,7 @@ std::vector<std::string> tokenize(std::string input){
                 tokens.push_back(token);
                 token.clear();
             }
-        }else {
+        }else{
             token += c;
         }
     }
