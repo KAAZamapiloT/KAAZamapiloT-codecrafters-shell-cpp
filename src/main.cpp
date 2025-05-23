@@ -70,7 +70,7 @@ if (*it == "<") {
 
          output_file = *(it + 1);
             append_output = false;
-            it = tokens.erase(it, it + 2)
+            it = tokens.erase(it, it + 2);
         }
           else if(*it == ">>"){
          if ((it + 1) == tokens.end()) {
