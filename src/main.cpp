@@ -732,7 +732,7 @@ std::vector<std::string> tokenize(const std::string& input) {
 
 ShellHistory History(100);
 void  handle_history(const Command& cmd){
-    if(cmd.args.size()==0){
+    if(cmd.args.size()==1){
 History.print_history();
     }else if(cmd.args.size()==2){
         History.print_int(stoi(cmd.args[1]));
