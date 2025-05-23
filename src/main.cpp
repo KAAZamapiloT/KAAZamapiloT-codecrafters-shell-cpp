@@ -609,6 +609,8 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
                         for(auto it:completions){
                             std::cout<<it<<"  ";
                         }
+                        std::endl;
+                        std::cout<<buffer<<"_";
                        }
 
             }else 
