@@ -625,9 +625,10 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
                     first_tab_pressed = true;
                 } else {
                     std::cout << "\n";
-                    for (const auto& suggestion : completions) {
-                        std::cout << suggestion << "  ";
-                    }
+                   std::sort(completions.begin(), completions.end());
+for (const auto& suggestion : completions) {
+    std::cout << suggestion << "  ";
+}
                     std::cout << "\n";
                     print_prompt_and_buffer();
                     first_tab_pressed = false; // reset after showing options
