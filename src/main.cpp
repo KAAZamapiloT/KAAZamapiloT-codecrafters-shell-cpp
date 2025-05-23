@@ -12,6 +12,7 @@
  #include <limits.h>
  #include <cstring>  // For strerror
 #include <cerrno>   // For errno
+#include <fcntl.h> 
 
 /*
 git add .
@@ -44,7 +45,7 @@ void handle_pwd(const std::vector<std::string>& tokens){
         perror("getcwd() error");
     }
 }
-void exeute_external_command(const std::vector<std::string>& tokens){
+void exeute_external_command( std::vector<std::string>& tokens){
  if (tokens.empty()) return;
  auto exe=tokens[0];
  std::vector<char*> args;
@@ -52,7 +53,7 @@ void exeute_external_command(const std::vector<std::string>& tokens){
 std::string input_file;
 std::string output_file;
 bool append_output = false;
-for (auto it = tokens.begin(); it != tokens.end()){
+for (auto it = tokens.begin(); it != tokens.end();){
 if (*it == "<") {
             if ((it + 1) == tokens.end()) {
                 std::cerr << "Syntax error: expected file after '<'\n";
