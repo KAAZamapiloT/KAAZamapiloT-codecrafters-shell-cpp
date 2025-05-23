@@ -65,7 +65,16 @@ pid_t pid =fork();
 }
 
  }
-    
+
+ void handle_cd(const std::vector<std::string>& tokens){
+  if (tokens.size() != 2) {
+        std::cerr << "Usage: cd <directory>\n";
+        return;
+    }
+  const std::string path=tokens[1];
+  if(chdir(path.c_str())!= 0) std::cerr<<"cd failed"
+
+}
 
 void handle_echo(const std::vector<std::string>& tokens) {
     for (size_t i = 1; i < tokens.size(); ++i) {
@@ -139,6 +148,7 @@ int main() {
   command_registry["type"] = handle_type;
   command_registry["exit"] = handle_exit;
   command_registry["pwd"] = handle_pwd;
+  command_registry["cd"] = handle_cd;
   while(1){
   std::cout << "$ ";
   std::string input;
