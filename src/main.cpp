@@ -232,19 +232,32 @@ Command parse_command(std::vector<std::string>& tokens) {
     return cmd;
 }
 
-std::vector<Command> parse_pipeline(const std::string& line) {
+std::vector<Command> parse_pipeline(const std::vector<std::string>& tokens) {
     std::vector<Command> pipeline;
-    std::istringstream ss(line);
-    std::string segment;
-    while (std::getline(ss, segment, '|')) {
-        std::istringstream cmdss(segment);
-        Command cmd;
-        std::string arg;
-        while (cmdss >> arg) {
-            cmd.args.push_back(arg);
+    Command current_cmd;
+
+    for (const auto& token : tokens) {
+        if (token == "|") {
+            // End current command and start a new one
+            if (!current_cmd.args.empty()) {
+                // The first arg is the executable
+                current_cmd.executable = current_cmd.args[0];
+                pipeline.push_back(current_cmd);
+                current_cmd = Command(); // reset
+            } else {
+                // Empty command before pipe, handle error or ignore
+            }
+        } else {
+            current_cmd.args.push_back(token);
         }
-        if (!cmd.args.empty()) pipeline.push_back(cmd);
     }
+
+    // Add the last command if any tokens
+    if (!current_cmd.args.empty()) {
+        current_cmd.executable = current_cmd.args[0];
+        pipeline.push_back(current_cmd);
+    }
+
     return pipeline;
 }
 
@@ -619,7 +632,7 @@ std::vector<std::string> tokenize(const std::string& input) {
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
- auto pipe_pos = std::find(tokens.begin(), tokens.end(), "|");
+  auto pipe_pos = std::find(tokens.begin(), tokens.end(), "|");
   if (pipe_pos != tokens.end()) {
         // Pipeline detected
         auto pipeline = parse_pipeline(tokens);
