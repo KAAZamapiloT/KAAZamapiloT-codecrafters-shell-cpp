@@ -138,7 +138,31 @@ std::vector<std::string> tokenize(std::string input){
             escaping = false;
             continue;
         }
-
+         if (c == '\\') {
+            // Inside double quotes: escape only certain characters
+            if (in_double_quote) {
+                if (i + 1 < input.size()) {
+                    char next = input[i + 1];
+                    if (next == '\\' || next == '"' || next == '$' || next == '`' || next == '\n') {
+                        escaping = true;
+                        continue;
+                    } else {
+                        // Literal backslash
+                        token += '\\';
+                    }
+                } else {
+                    token += '\\';
+                }
+            }
+            // Inside single quotes: backslash is literal
+            else if (in_single_quote) {
+                token += '\\';
+            }
+            // Outside quotes: escape next char
+            else {
+                escaping = true;
+            }
+        }else
         if (c == '\\'&&!in_double_quote&&!in_single_quote) {
             escaping = true;
         } else if (c == '\'' && !in_double_quote) {
