@@ -197,29 +197,6 @@ void populate_command_trie(CommandTrie& trie) {
 }
 
 
-char** command_completion(const char* text, int start, int end) {
-    // text contains what user has typed so far
-    // start and end indicate position in the line
-    
-std::vector<std::string> matches = Command_trie.find_completions(text);
-    
-    // Convert to format expected by readline
-    char** completion_matches = nullptr;
-    if (!matches.empty()) {
-        completion_matches = (char**)malloc(sizeof(char*) * (matches.size() + 1));
-        for (size_t i = 0; i < matches.size(); ++i) {
-            completion_matches[i] = strdup(matches[i].c_str());
-        }
-        completion_matches[matches.size()] = nullptr;
-    }
-    
-    return completion_matches;
-}
-
-
-
-
-
 Command parse_command(std::vector<std::string>& tokens) {
     Command cmd;
 
@@ -589,6 +566,25 @@ if (it != command_registry.end()) {
 }
 
 
+char** command_completion(CommandTrie trie,const char* text, int start, int end) {
+    // text contains what user has typed so far
+    // start and end indicate position in the line
+    
+std::vector<std::string> matches = trie.find_completions(text);
+    
+    // Convert to format expected by readline
+    char** completion_matches = nullptr;
+    if (!matches.empty()) {
+        completion_matches = (char**)malloc(sizeof(char*) * (matches.size() + 1));
+        for (size_t i = 0; i < matches.size(); ++i) {
+            completion_matches[i] = strdup(matches[i].c_str());
+        }
+        completion_matches[matches.size()] = nullptr;
+    }
+    
+    return completion_matches;
+}
+
 std::string read_line_with_autocomplete(CommandTrie& trie) {
     std::string buffer;
     char c;
@@ -631,6 +627,8 @@ std::string read_line_with_autocomplete(CommandTrie& trie) {
 
     return buffer;
 }
+
+
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
