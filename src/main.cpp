@@ -58,6 +58,8 @@ struct Command{
 
     bool append_stdout = false;
     bool append_stderr = false;
+
+    Command* next = nullptr;
 };
 
 using CommandHandler = std::function<void(const Command&)>;
@@ -247,48 +249,59 @@ std::vector<Command> parse_pipeline(const std::string& line) {
 }
 
 void execute_command(const Command& cmd) {
-    std::vector<char*> argv;
+    auto it = command_registry.find(cmd.executable);
+    if(it!=command_registry.end()){
+     it->second();
+     exit(0);
+    }else{
+std::vector<char*> argv;
     for (const auto& s : cmd.args) argv.push_back(const_cast<char*>(s.c_str()));
     argv.push_back(nullptr);
     execvp(argv[0], argv.data());
     perror("execvp");
     _exit(1);
+    }
+    
 }
 
 void execute_pipeline(const std::vector<Command>& pipeline) {
     int n = pipeline.size();
     std::vector<int> pipe_fds(2 * (n - 1));
-    // Create pipes
     for (int i = 0; i < n - 1; ++i) {
-        if (pipe(&pipe_fds[2*i]) < 0) { perror("pipe"); return; }
+        if (pipe(&pipe_fds[2*i]) < 0) {
+            perror("pipe");
+            return;
+        }
     }
+
     for (int i = 0; i < n; ++i) {
+        bool is_last = (i == n - 1);
+        bool is_builtin = command_registry.count(pipeline[i].executable);
+
+        // Built-in as last stage
+        if (is_last && is_builtin) {
+            if (i > 0) dup2(pipe_fds[2*(i-1)], STDIN_FILENO);
+            for (int fd : pipe_fds) close(fd);
+            command_registry[pipeline[i].executable](pipeline[i].args);
+            return;
+        }
+
         pid_t pid = fork();
         if (pid == 0) {
-            // child
-            // if not first, dup read end
-            if (i > 0) {
-                dup2(pipe_fds[2*(i-1)], STDIN_FILENO);
-            }
-            // if not last, dup write end
-            if (i < n - 1) {
-                dup2(pipe_fds[2*i + 1], STDOUT_FILENO);
-            }
-            // close all fds
+            if (i > 0) dup2(pipe_fds[2*(i-1)], STDIN_FILENO);
+            if (!is_last) dup2(pipe_fds[2*i + 1], STDOUT_FILENO);
             for (int fd : pipe_fds) close(fd);
             execute_command(pipeline[i]);
-        }
-        else if (pid < 0) {
+        } else if (pid < 0) {
             perror("fork");
             return;
         }
-        // parent continues
     }
-    // parent closes all fds
+
     for (int fd : pipe_fds) close(fd);
-    // wait for children
     for (int i = 0; i < n; ++i) wait(nullptr);
 }
+
 
 bool is_executable(const std::string& path) {
     // access with X_OK checks executable permission
