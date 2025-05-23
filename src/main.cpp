@@ -147,7 +147,7 @@ std::vector<std::string> tokenize(std::string input){
             in_double_quote = !in_double_quote;  // toggle double quote mode
         } else if (std::isspace(c) && !in_single_quote && !in_double_quote) {
             if (!token.empty()) {
-                tokens.push_back(current_token);
+                tokens.push_back(token);
                 token.clear();
             }
         } else {
@@ -155,8 +155,8 @@ std::vector<std::string> tokenize(std::string input){
         }
     }
 
-     if (!current_token.empty()) {
-        tokens.push_back(current_token);
+     if (!token.empty()) {
+        tokens.push_back(token);
     }
 
     if (in_single_quote || in_double_quote) {
