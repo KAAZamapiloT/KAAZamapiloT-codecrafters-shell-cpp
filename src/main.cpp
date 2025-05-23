@@ -10,6 +10,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
  #include <limits.h>
+ #include <cstring>  // For strerror
+#include <cerrno>   // For errno
+
 /*
 git add .
 git commit --allow-empty -m "[any message]"
