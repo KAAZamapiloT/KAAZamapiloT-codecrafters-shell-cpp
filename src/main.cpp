@@ -65,7 +65,7 @@ using CommandHandler = std::function<void(const Command&)>;
 std::unordered_map<std::string , CommandHandler> command_registry;
 
 
-void scan_directory_for_executables(const std::string& dir_path, CommandTrie& trie);
+
 
 class CommandTrie {
 private:
@@ -151,23 +151,6 @@ private:
     }
 };
 
-void populate_command_trie(CommandTrie& trie) {
-    // Add built-in commands
-    for (const auto& [command_name, handler] : command_registry) {
-        trie.insert_command(command_name);
-    }
-    
-    // Add external commands from PATH
-    const char* path_env = std::getenv("PATH");
-    if (path_env) {
-        std::vector<std::string> path_dirs = split_path(path_env);
-        
-        for (const std::string& dir : path_dirs) {
-            // Scan each directory for executable files
-            scan_directory_for_executables(dir, trie);
-        }
-    }
-}
 
 void scan_directory_for_executables(const std::string& dir_path, CommandTrie& trie) {
     DIR* dir = opendir(dir_path.c_str());
@@ -194,6 +177,25 @@ void scan_directory_for_executables(const std::string& dir_path, CommandTrie& tr
 
     closedir(dir);
 }
+
+void populate_command_trie(CommandTrie& trie) {
+    // Add built-in commands
+    for (const auto& [command_name, handler] : command_registry) {
+        trie.insert_command(command_name);
+    }
+    
+    // Add external commands from PATH
+    const char* path_env = std::getenv("PATH");
+    if (path_env) {
+        std::vector<std::string> path_dirs = split_path(path_env);
+        
+        for (const std::string& dir : path_dirs) {
+            // Scan each directory for executable files
+            scan_directory_for_executables(dir, trie);
+        }
+    }
+}
+
 
 char** command_completion(const char* text, int start, int end) {
     // text contains what user has typed so far
