@@ -48,6 +48,43 @@ void exeute_external_command(const std::vector<std::string>& tokens){
  if (tokens.empty()) return;
  auto exe=tokens[0];
  std::vector<char*> args;
+
+std::string input_file;
+std::string output_file;
+bool append_output = false;
+for (auto it = tokens.begin(); it != tokens.end()){
+if (*it == "<") {
+            if ((it + 1) == tokens.end()) {
+                std::cerr << "Syntax error: expected file after '<'\n";
+                return;
+            }
+
+            input_file = *(it + 1);
+            it = tokens.erase(it, it + 2);
+        }else if (*it == ">"||*it == "1>") {
+            if ((it + 1) == tokens.end()) {
+                std::cerr << "Syntax error: expected file after '>'\n";
+                return;
+            }
+
+         output_file = *(it + 1);
+            append_output = false;
+            it = tokens.erase(it, it + 2)
+        }
+          else if(*it == ">>"){
+         if ((it + 1) == tokens.end()) {
+                std::cerr << "Syntax error: expected file after '>>'\n";
+                return;
+            }
+            output_file = *(it + 1);
+            append_output = true;
+            it = tokens.erase(it, it + 2);
+          }else{
+            ++it;
+          }
+            
+}
+
 for (const std::string& token : tokens) {
         args.push_back(const_cast<char*>(token.c_str()));
     }
@@ -56,6 +93,26 @@ args.push_back(nullptr);
 pid_t pid =fork();
 
        if(pid==0){
+             if (!input_file.empty()) {
+            int fd = open(input_file.c_str(), O_RDONLY);
+            if (fd < 0) {
+                perror("open input");
+                exit(1);
+            }
+            dup2(fd, STDIN_FILENO);
+            close(fd);
+        }
+        if (!output_file.empty()) {
+            int flags = O_WRONLY | O_CREAT | (append_output ? O_APPEND : O_TRUNC);
+            int fd = open(output_file.c_str(), flags, 0644);
+            if (fd < 0) {
+                perror("open output");
+                exit(1);
+            }
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+        }  
+
         execvp(args[0], args.data());
         std::cerr << args[0] << ": command not found\n";
         exit(1); // Only if execvp fails
@@ -193,7 +250,7 @@ void Execute_Command(const std::string& input){
 
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
-
+    
     auto it = command_registry.find(tokens[0]);
     if (it != command_registry.end()) {
         it->second(tokens); // Call the handler
@@ -216,6 +273,7 @@ int main() {
   command_registry["exit"] = handle_exit;
   command_registry["pwd"] = handle_pwd;
   command_registry["cd"] = handle_cd;
+ 
   while(1){
   std::cout << "$ ";
   std::string input;
