@@ -16,6 +16,8 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <termios.h>
+#include <fstream>
+
 #include<memory>
 #include <dirent.h>
 /*
