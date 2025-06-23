@@ -755,8 +755,29 @@ History.print_history();
     }else if(cmd.args.size()==2){
         History.print_int(stoi(cmd.args[1]));
     }
+    else if(cmd.args.size()==3 && cmd.args[1]=="-r"){
+         const std::string& path = cmd.args[2];
+        std::ifstream infile(path);
+        if (!infile.is_open()) {
+            std::cerr << "history: cannot open '" 
+                      << path << "': " 
+                      << strerror(errno) << "\n";
+            return;
+        }
 
-}
+        std::string line;
+        while (std::getline(infile, line)) {
+            if (!line.empty()) {
+                History.add_command(line);
+            }
+        }
+        infile.close();
+    }
+    else {
+        std::cerr << "Usage: history [-r file] [N]\n";
+    }
+    }
+
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
