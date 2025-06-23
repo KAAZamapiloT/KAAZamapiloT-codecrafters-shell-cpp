@@ -72,6 +72,7 @@ class ShellHistory {
 public:
     std::vector<std::string> history;
     size_t max_size;
+    size_t last_saved_index=0;
 
 public:
     ShellHistory(size_t max_history = 10000) : max_size(max_history) {}
@@ -799,9 +800,13 @@ History.print_history();
         return;
     }
 
-    for (const auto& cmd_str : History.history) {
-        outfile << cmd_str << "\n";
+    // Write only new history entries since last append
+    for (size_t i = History.last_saved_index; i < History.history.size(); ++i) {
+        outfile << History.history[i] << "\n";
     }
+
+    // Update the marker
+    History.last_saved_index = History.history.size();
 
     outfile.close();
 }
