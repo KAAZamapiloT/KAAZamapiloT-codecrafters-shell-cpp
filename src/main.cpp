@@ -174,6 +174,20 @@ public:
             std::cout << "No commands found containing: " << pattern << std::endl;
         }
     }
+    void append_to_file(const std::string& path) {
+        std::ofstream out(path, std::ios::app);
+        if (!out.is_open()) {
+            std::cerr << "history: cannot open '" << path << "': "
+                      << strerror(errno) << "\n";
+            return;
+        }
+
+        for (size_t i = last_saved_index; i < history.size(); ++i) {
+            out << history[i] << "\n";
+        }
+
+        last_saved_index = history.size();  // ✅ All saved
+    }
 };
 class CommandTrie {
 private:
@@ -835,6 +849,24 @@ void load_history_from_env() {
 
     infile.close();
 }
+void save_history_on_exit() {
+    const char* histfile = std::getenv("HISTFILE");
+
+    std::string path;
+    if (histfile && std::strlen(histfile) > 0) {
+        path = histfile;
+    } else {
+        const char* home = std::getenv("HOME");
+        if (home) {
+            path = std::string(home) + "/.my_shell_history";
+        } else {
+            return; // No fallback
+        }
+    }
+
+    History.append_to_file(path);
+}
+
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
@@ -1030,6 +1062,7 @@ int main() {
   command_registry["cd"] = handle_cd;
   command_registry["history"]=handle_history;
   //command_registry["exit0"] = handle_exit;
+  atexit(save_history_on_exit); 
   populate_command_trie(AutoComplete);
   load_history_from_env();
   while(1){
