@@ -814,7 +814,27 @@ History.print_history();
         std::cerr << "Usage: history [-r file] [N]\n";
     }
     }
+void load_history_from_env() {
+    const char* histfile = std::getenv("HISTFILE");
+    if (!histfile) return;
 
+    std::ifstream infile(histfile);
+    if (!infile.is_open()) {
+        std::cerr << "Failed to open HISTFILE: " << histfile << "\n";
+        return;
+    }
+
+    std::string line;
+    while (std::getline(infile, line)) {
+        if (!line.empty()) {
+            History.add_command(line);
+        }
+    }
+
+    History.last_saved_index = History.history.size(); // So -a won't write again immediately
+
+    infile.close();
+}
 void Execute_Command(const std::string& input) {
     auto tokens = tokenize(input);
     if (tokens.empty()) return;
@@ -1011,7 +1031,7 @@ int main() {
   command_registry["history"]=handle_history;
   //command_registry["exit0"] = handle_exit;
   populate_command_trie(AutoComplete);
- 
+  load_history_from_env();
   while(1){
    enableRawMode();
    std::string input = read_line_with_autocomplete(AutoComplete);
