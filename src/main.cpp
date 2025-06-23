@@ -774,7 +774,37 @@ History.print_history();
             }
         }
         infile.close();
+    }else if(cmd.args.size()==3 && cmd.args[1]=="-w"){
+      const std::string& path = cmd.args[2];
+        std::ofstream outfile(path);
+        if(!outfile.is_open()) {
+            std::cerr << "history: cannot open '" 
+                      << path << "': " 
+                      << strerror(errno) << "\n";
+            return;
+        }
+         // Write each command to file
+         for (const auto& cmd_str : History.history) {
+         outfile << cmd_str << "\n";
+         }
+
+    outfile.close();
+    }else if (cmd.args.size() == 3 && cmd.args[1] == "-a") {
+    const std::string& path = cmd.args[2];
+    std::ofstream outfile(path, std::ios::app); // append mode
+    if (!outfile.is_open()) {
+        std::cerr << "history: cannot open '" 
+                  << path << "': " 
+                  << strerror(errno) << "\n";
+        return;
     }
+
+    for (const auto& cmd_str : History.history) {
+        outfile << cmd_str << "\n";
+    }
+
+    outfile.close();
+}
     else {
         std::cerr << "Usage: history [-r file] [N]\n";
     }
